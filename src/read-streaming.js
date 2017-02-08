@@ -25,6 +25,7 @@ ReadStreaming.prototype.start = function () {
       if (err) {
         that.emit('error', err);
       } else {
+        console.log('read raw data:', data.toString('ascii'));
         that.emit('data', data);
         setImmediate(readNext);
       }

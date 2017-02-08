@@ -7,7 +7,6 @@
 
 var EventEmitter = require('events');
 var util = require('util');
-var assert = require('assert');
 var Queue = require('ruff-async').Queue;
 var ReadStreaming = require('./read-streaming');
 
@@ -45,11 +44,9 @@ Communication.prototype.sendRawData = function (data, callback) {
 };
 
 Communication.prototype.pushCmd = function (cmdOptions, callback) {
-  assert(cmdOptions.requestData);
-  assert(cmdOptions.responseTimeout);
-  assert(typeof cmdOptions.parseResponse === 'function');
-
-  this._cmdQueue.push(this, [cmdOptions], callback);
+  if (cmdOptions.requestData && cmdOptions.responseTimeout && typeof cmdOptions.parseResponse === 'function') {
+    this._cmdQueue.push(this, [cmdOptions], callback);
+  }
 }
 
 Communication.prototype._getResponse = function (timeout, callback) {
@@ -71,7 +68,7 @@ Communication.prototype._getResponse = function (timeout, callback) {
 };
 
 Communication.prototype._processCmd = function (cmdOptions, callback) {
-  assert(this._cs === State.idle);
+  if (this._cs !== State.idle) return;
   var cmdData = cmdOptions.requestData;
   var cmdTimeout = cmdOptions.responseTimeout;
 
