@@ -106,10 +106,12 @@ Communication.prototype._parseData = function (data) {
   this._pendingData = Buffer.concat([this._pendingData, data]);
   if (this._cs === State.waitingResponse) {
     var response = this._parseResponse(this._pendingData);
-    if (response.index[1] > 0) {
-      this._consume(response.index[0] + response.index[1]);
-      this.emit('responseDone', response.valid);
-    }
+    // this.emit('responseDone', response);
+    console.log('emit done');
+    // if (response.index[1] > 0) {
+    //   this._consume(response.index[0] + response.index[1]);
+    //   this.emit('responseDone', response.valid);
+    // }
   }
 };
 
