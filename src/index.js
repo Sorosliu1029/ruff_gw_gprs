@@ -6,7 +6,6 @@
 'use strict';
 
 var driver = require('ruff-driver');
-var gpio = require('gpio');
 var Communication = require('./communication');
 var createCommands = require('./commands');
 
@@ -17,25 +16,18 @@ module.exports = driver({
         this._communication = new Communication(this._uart);
         this._commands = createCommands(this._communication);
         var that = this;
+        this._communication.on('ready', function () {
+            that.emit('ready');
+        });
+        this._communication.on('end', function () {
+            that.emit('end');
+        })
         Object.keys(this._commands).forEach(function (key) {
             that[key] = that._commands[key].bind(that._commands);
-        })
+        });
     },
 
     exports: {
-        write: function () {
-            this._communication.sendRawData.apply(this._communication, arguments);
-        },
-        powerUp: function (cb) {
-            $('#PWR_GPRS').setDirection(gpio.Direction.out);
-            $('#PWR_GPRS').write(gpio.Level.low, function () {
-                setTimeout(function () {
-                    $('#PWR_GPRS').write(gpio.Level.high, function () {
-                        cb && cb();
-                    });
-                }, 1100);
-            });
-        }
 
     }
 });
