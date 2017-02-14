@@ -21,7 +21,9 @@ module.exports = driver({
         });
         this._communication.on('end', function () {
             that.emit('end');
-        })
+        });
+
+        // TODO: bind public functions
         Object.keys(this._commands).forEach(function (key) {
             that[key] = that._commands[key].bind(that._commands);
         });
