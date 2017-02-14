@@ -81,7 +81,6 @@ Communication.prototype._getResponse = function (callback) {
   function responseDoneCleanup(error, response) {
     that.removeListener('responseDone', responseDoneCleanup);
     that._cs = State.idle;
-    that._pendingData = new Buffer(0);
     callback(error, response.data);
   };
 };
@@ -93,7 +92,7 @@ Communication.prototype._consume = function (length) {
 // parse raw data from UART receiver
 Communication.prototype._parseData = function (data) {
   if (this._cs === State.idle) {
-    this._pendingData = new Buffer(0);
+    console.log('receive data when IDLE! : ', data.toString());
     return;
   }
   this._pendingData = Buffer.concat([this._pendingData, data]);
@@ -103,12 +102,8 @@ Communication.prototype._parseData = function (data) {
     if (res.valid) {
       this._consume(res.index[0] + res.index[1]);
       console.log('---------------------------------');
-      console.log('res index: ' + res.index[0] + ' ' + res.index[1]);
       console.log('res cmd: ' + res.ackCmd);
       console.log('res data: ' + res.data);
-      if (this._pendingData.length !== 0) {
-        error = new Error('cache data cannot be consumed completely.')
-      }
       this.emit("responseDone", error, res);
     }
   }
@@ -118,20 +113,24 @@ function basicParseResponseWithData(rawData) {
   var res = {};
   res.valid = false;
   var rawDataStr = rawData.toString();
-  console.log(rawDataStr);
+  console.log(rawData.toString());
   var atReg = new RegExp(/AT(.*?)\r/);
-  var resReg = new RegExp(/(\r\n.*\r\n)/g);
+  var resReg = new RegExp(/(\r\n.+)+\r\n/g);
   var atMatch = rawDataStr.match(atReg);
   var resMatch = rawDataStr.match(resReg);
   if (atMatch && resMatch) {
+    var lastMatch = Buffer.from(resMatch[resMatch.length - 1]);
+    var lastMatchEndIndex = rawData.indexOf(lastMatch) + lastMatch.length;
+    if (lastMatchEndIndex !== rawData.length) {
+      return res;
+    }
     res.valid = true;
     res.ackCmd = atMatch[1];
     res.data = [];
     resMatch.forEach(function (match) {
       res.data.push(match.slice(2, match.length-2));
-    })
-    var lastMatch = Buffer.from(resMatch[resMatch.length - 1]);
-    res.index = [rawData.indexOf(AT), rawData.indexOf(lastMatch) + lastMatch.length];
+    });
+    res.index = [rawData.indexOf(AT), lastMatchEndIndex];
   }
   return res;
 };
