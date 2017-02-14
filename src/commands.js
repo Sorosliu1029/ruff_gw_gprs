@@ -53,14 +53,16 @@ function createCommands(communication) {
     });
   };
 
-  commands._cmd2do = function (cmdType, cmdStr, removeCmdHeader, cb) {
+  commands._cmd2do = function (cmdType, cmdArray, removeCmdHeader, statusIndex, cb) {
     var cmd;
+    var cmdStr = cmdArray[0];
+    var writeValue = cmdArray[1];
     switch(cmdType) {
       case "read":
         cmd = generateReadCmd(cmdStr);
         break;
       case "write":
-        cmd = generateWriteCmd(cmdStr);
+        cmd = generateWriteCmd(cmdStr, writeValue);
         break;
       case "test":
         cmd = generateTestCmd(cmdStr);
@@ -74,22 +76,24 @@ function createCommands(communication) {
         console.log(error);
         cb && cb(error);
       }
-      if (result[result.length - 1] !== 'OK') {
+      statusIndex = statusIndex === -1 ? result.length - 1 : 0;
+      if (! result[statusIndex].match(/OK/)) {
         error = new Error('response ends with error');
         cb && cb(error);
       } else {
         var resValue;
         if (removeCmdHeader) {
-          var regexp = new RegExp(cmdStr.slice(1) + ': (.*)');
+          var regexp = new RegExp(cmdStr.slice(1) + ': (.+)');
           resValue = result[0].match(regexp)[1];
+          console.log('resValue: ', resValue);
         }
-        cb && cb(null, resValue || result[0]);
+        cb && cb(null, resValue || result);
       }
     });
   };
 
   commands.getSignalStrength = function (cb) {
-    this._cmd2do('exec', '+CSQ', true, function (error, result) {
+    this._cmd2do('exec', ['+CSQ'], true, -1, function (error, result) {
       if (error) {
         cb && cb(eeror);
       }
@@ -102,7 +106,7 @@ function createCommands(communication) {
   };
 
   commands.getNetStatus = function (cb) {
-    this._cmd2do('read', '+CGATT', true, function (error, result) {
+    this._cmd2do('read', ['+CGATT'], true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -112,7 +116,7 @@ function createCommands(communication) {
 
   // TODO: match the API spec
   commands.getCellInfo = function (cb) {
-    this._cmd2do('read', '+CREG', true, function (error, result) {
+    this._cmd2do('read', ['+CREG'], true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -126,11 +130,11 @@ function createCommands(communication) {
 
   commands.getSimInfo = function (cb) {
     var that = this;
-    this._cmd2do('exec', '+CCID', false, function (error, iccid) {
+    this._cmd2do('exec', ['+CCID'], false, -1, function (error, iccid) {
       if (error) {
         cb && cb(error);
       }
-      that._cmd2do('exec', '+CIMI', false, function(error, imsi) {
+      that._cmd2do('exec', ['+CIMI'], false, -1, function(error, imsi) {
         if(error) {
           cb && cb(error);
         }
@@ -139,8 +143,108 @@ function createCommands(communication) {
     });
   };
 
-  commands.init = function (cb) {
+  commands.getIpStatus = function(ipIndex, cb) {
+    var cmdType = 'write';
+    var cmdArray = ['+CIPSTATUS', ipIndex];
+    var removeCmdHeader = true;
+    var statusIndex = -1;
+    if(ipIndex === -1) {
+      cmdType = 'exec';
+      cmdArray = ['+CIPSTATUS'];
+      removeCmdHeader = false;
+      statusIndex = 0;
+    }
+    this._cmd2do(cmdType, cmdArray, removeCmdHeader, statusIndex, function (error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
 
+  // value = 0 to detach gprs service
+  // value = 1 to attach gprs service
+  commands.setGprsAttach = function (value, cb) {
+    this._cmd2do('write', ['+CGATT', value], false, -1, function(error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  // value = 0 to disable multi ip connection
+  // value = 1 to enable multi ip connection
+  commands.setMultiConn = function (value, cb) {
+    this._cmd2do('write', ['+CIPMUX', value], false, -1, function(error, result) {
+      if(error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  commands.setApn = function(apn, user, passwd, cb) {
+    var writeValue = '"' + apn + '","' + user + '","' + passwd + '"';
+    this._cmd2do('write', ['+CSTT', writeValue], false, -1, function(error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  commands.bringUpConn = function(cb) {
+    this._cmd2do('exec', ['+CIICR'], false, -1, function(error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  commands.init = function (cb) {
+    var that = this;
+    this.setGprsAttach(1, function(error, result) {
+      if (error || result[0] !== 'OK') {
+        console.log('set gprs attach result: |', result);
+        cb && cb(error ? error : new Error('set GPRS attach error'));
+      }
+      that.setMultiConn(1, function(error, result) {
+        if(error || result[0] !== 'OK') {
+          cb && cb(error ? error : new Error('set multi connection error'));
+        }
+        that.setApn('CMNET', '', '', function(error, result) {
+          if (error || result[0] !== 'OK') {
+            cb && cb(error ? error : new Error('set APN error'));
+          }
+          that.bringUpConn(function(error, result) {
+            if (error || result[0] !== 'OK') {
+              cb && cb(error ? error : new Error('bring up connection error'));
+            }
+            cb && cb(null, result);
+          });
+        });
+      });
+    });
+  };
+
+  commands.shutIp = function(cb) {
+    this._cmd2do('exec', ['+CIPSHUT'], false, -1, function(error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  commands.deInit = function(cb) {
+    this.shutIp(function(error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
   };
 
   commands.testAT = function (cb) {
