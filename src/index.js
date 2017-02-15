@@ -22,7 +22,15 @@ module.exports = driver({
         this._communication.on('end', function () {
             that.emit('end');
         });
-
+        this._communication.on('up', function() {
+            that.emit('up');
+        });
+        this._communication.on('down', function () {
+            that.emit('down');
+        });
+        this._communication.on('error', function (error) {
+            that.emit('error', error);
+        });
         // TODO: bind public functions
         Object.keys(this._commands).forEach(function (key) {
             that[key] = that._commands[key].bind(that._commands);

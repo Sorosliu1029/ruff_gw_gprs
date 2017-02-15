@@ -53,11 +53,11 @@ function createCommands(communication) {
     });
   };
 
-  commands._cmd2do = function (cmdType, cmdArray, removeCmdHeader, statusIndex, cb) {
+  commands._cmd2do = function (cmdType, cmdArray, removeCmdHeader, checkStatus, statusIndex, cb) {
     var cmd;
     var cmdStr = cmdArray[0];
     var writeValue = cmdArray[1];
-    switch(cmdType) {
+    switch (cmdType) {
       case "read":
         cmd = generateReadCmd(cmdStr);
         break;
@@ -77,9 +77,11 @@ function createCommands(communication) {
         cb && cb(error);
       }
       statusIndex = statusIndex === -1 ? result.length - 1 : 0;
-      if (! result[statusIndex].match(/OK/)) {
+      if (!checkStatus) {
+        cb && cb(null, result);
+      } else if (!result[statusIndex].match(/OK/)) {
         error = new Error('response ends with error');
-        cb && cb(error);
+        cb && cb(error, result);
       } else {
         var resValue;
         if (removeCmdHeader) {
@@ -93,7 +95,7 @@ function createCommands(communication) {
   };
 
   commands.getSignalStrength = function (cb) {
-    this._cmd2do('exec', ['+CSQ'], true, -1, function (error, result) {
+    this._cmd2do('exec', ['+CSQ'], true, true, -1, function (error, result) {
       if (error) {
         cb && cb(eeror);
       }
@@ -106,7 +108,7 @@ function createCommands(communication) {
   };
 
   commands.getNetStatus = function (cb) {
-    this._cmd2do('read', ['+CGATT'], true, -1, function (error, result) {
+    this._cmd2do('read', ['+CGATT'], true, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -116,7 +118,7 @@ function createCommands(communication) {
 
   // TODO: match the API spec
   commands.getCellInfo = function (cb) {
-    this._cmd2do('read', ['+CREG'], true, -1, function (error, result) {
+    this._cmd2do('read', ['+CREG'], true, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -130,12 +132,12 @@ function createCommands(communication) {
 
   commands.getSimInfo = function (cb) {
     var that = this;
-    this._cmd2do('exec', ['+CCID'], false, -1, function (error, iccid) {
+    this._cmd2do('exec', ['+CCID'], false, true, -1, function (error, iccid) {
       if (error) {
         cb && cb(error);
       }
-      that._cmd2do('exec', ['+CIMI'], false, -1, function(error, imsi) {
-        if(error) {
+      that._cmd2do('exec', ['+CIMI'], false, true, -1, function (error, imsi) {
+        if (error) {
           cb && cb(error);
         }
         cb && cb(null, iccid, imsi);
@@ -143,29 +145,10 @@ function createCommands(communication) {
     });
   };
 
-  commands.getIpStatus = function(ipIndex, cb) {
-    var cmdType = 'write';
-    var cmdArray = ['+CIPSTATUS', ipIndex];
-    var removeCmdHeader = true;
-    var statusIndex = -1;
-    if(ipIndex === -1) {
-      cmdType = 'exec';
-      cmdArray = ['+CIPSTATUS'];
-      removeCmdHeader = false;
-      statusIndex = 0;
-    }
-    this._cmd2do(cmdType, cmdArray, removeCmdHeader, statusIndex, function (error, result) {
-      if (error) {
-        cb && cb(error);
-      }
-      cb && cb(null, result);
-    });
-  };
-
   // value = 0 to detach gprs service
   // value = 1 to attach gprs service
   commands.setGprsAttach = function (value, cb) {
-    this._cmd2do('write', ['+CGATT', value], false, -1, function(error, result) {
+    this._cmd2do('write', ['+CGATT', value], false, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -176,17 +159,7 @@ function createCommands(communication) {
   // value = 0 to disable multi ip connection
   // value = 1 to enable multi ip connection
   commands.setMultiConn = function (value, cb) {
-    this._cmd2do('write', ['+CIPMUX', value], false, -1, function(error, result) {
-      if(error) {
-        cb && cb(error);
-      }
-      cb && cb(null, result);
-    });
-  };
-
-  commands.setApn = function(apn, user, passwd, cb) {
-    var writeValue = '"' + apn + '","' + user + '","' + passwd + '"';
-    this._cmd2do('write', ['+CSTT', writeValue], false, -1, function(error, result) {
+    this._cmd2do('write', ['+CIPMUX', value], false, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -194,8 +167,18 @@ function createCommands(communication) {
     });
   };
 
-  commands.bringUpConn = function(cb) {
-    this._cmd2do('exec', ['+CIICR'], false, -1, function(error, result) {
+  commands.setApn = function (apn, user, passwd, cb) {
+    var writeValue = '"' + apn + '","' + user + '","' + passwd + '"';
+    this._cmd2do('write', ['+CSTT', writeValue], false, true, -1, function (error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  commands.bringUpConn = function (cb) {
+    this._cmd2do('exec', ['+CIICR'], false, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -205,32 +188,48 @@ function createCommands(communication) {
 
   commands.init = function (cb) {
     var that = this;
-    this.setGprsAttach(1, function(error, result) {
+    this.setGprsAttach(1, function (error, result) {
       if (error || result[0] !== 'OK') {
         console.log('set gprs attach result: |', result);
         cb && cb(error ? error : new Error('set GPRS attach error'));
       }
-      that.setMultiConn(1, function(error, result) {
-        if(error || result[0] !== 'OK') {
+      that.setMultiConn(1, function (error, result) {
+        if (error || result[0] !== 'OK') {
           cb && cb(error ? error : new Error('set multi connection error'));
         }
-        that.setApn('CMNET', '', '', function(error, result) {
+        that.setApn('CMNET', '', '', function (error, result) {
           if (error || result[0] !== 'OK') {
             cb && cb(error ? error : new Error('set APN error'));
           }
-          that.bringUpConn(function(error, result) {
+          that.bringUpConn(function (error, result) {
             if (error || result[0] !== 'OK') {
               cb && cb(error ? error : new Error('bring up connection error'));
             }
-            cb && cb(null, result);
+            that.getIP(function (error, result) {
+              if (error) {
+                cb && cb(error);
+              }
+              communication.emit('up');
+              cb && cb(null, result);
+            });
           });
         });
       });
     });
   };
 
-  commands.shutIp = function(cb) {
-    this._cmd2do('exec', ['+CIPSHUT'], false, -1, function(error, result) {
+  commands.shutIp = function (cb) {
+    this._cmd2do('exec', ['+CIPSHUT'], false, true, -1, function (error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      communication.emit('down');
+      cb && cb(null, result);
+    });
+  };
+
+  commands.deInit = function (cb) {
+    this.shutIp(function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -238,8 +237,8 @@ function createCommands(communication) {
     });
   };
 
-  commands.deInit = function(cb) {
-    this.shutIp(function(error, result) {
+  commands.getIP = function (cb) {
+    this._cmd2do('exec', ['+CIFSR'], false, false, null, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -247,14 +246,27 @@ function createCommands(communication) {
     });
   };
 
-  commands.testAT = function (cb) {
-    var cmdTestAT = generateExecutionCmd('');
-    communication.pushCmd(cmdTestAT, function (error, result) {
+  commands.getConnections = function (cb) {
+    this._cmd2do('exec', ['+CIPSTATUS'], false, true, 0, function (error, result) {
       if (error) {
-        console.log(error);
-        return;
+        cb && cb(error);
       }
-      cb && cb(undefined, result);
+      var code = result[0];
+      var ipState = result[1];
+      var connections = [];
+      result[2].split('\r\n').filter(function (conn) {
+        // last splited result would be ''
+        return !!conn;
+      }).forEach(function (conn) {
+        var connArray = conn.split(',');
+        var connObj = new Object(null);
+        connObj.id = Number(connArray[0].slice(2));
+        connObj.ip = connArray[3].replace('"', '');
+        connObj.port = connArray[4].replace('"', '');
+        connObj.status = connArray[5].replace('"', '');
+        connections.push(connObj);
+      });
+      cb && cb(null, connections);
     });
   };
 
