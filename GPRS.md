@@ -27,7 +27,9 @@ $('#gprs').on('up', function () {
 $('#gprs').on('down', function () {
 });
 
-// error
+// 连接网络发生错误进入error事件
+$('#gprs').on('error', function () {
+});
 ```
 
 ## TCP
@@ -104,6 +106,6 @@ $('#gprs').getSimInfo(function (error, iccid, imsi) {
 });
 
 // 写入RAW AT指令（比如'AT+CREG?'）
-$('#gprs').writeRaw(function (error, data) {
+$('#gprs').writeRaw(command, function (error, data) {
 });
 ```
