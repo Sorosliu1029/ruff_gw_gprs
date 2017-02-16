@@ -16,6 +16,8 @@ var State = {
   waitingResponse: 1
 };
 
+var NOECHO = false;
+
 function CmdCommunication(port, dispatcher) {
   EventEmitter.call(this);
   this._cs = State.idle;
@@ -73,10 +75,10 @@ function basicParseResponseWithData(rawData) {
   var atMatch = rawDataStr.match(atReg);
   var sendIndicatorReg = new RegExp(/\r\r\n>\s/);
   var sendIndicatroMatch = rawDataStr.match(sendIndicatorReg);
-  if (atMatch && sendIndicatroMatch) {
+  if ((NOECHO || atMatch) && sendIndicatroMatch) {
     res.valid = true;
     res.type = "enterIgnore";
-    res.ackCmd = atMatch[1];
+    res.ackCmd = NOECHO ? 'NOECHO' : atMatch[1];
     res.index = [0, rawData.length];
     res.data = ['>'];
     return res;
@@ -91,13 +93,13 @@ function basicParseResponseWithData(rawData) {
     }
     res.valid = true;
     if (atMatch) {
-      res.ackCmd = atMatch[1];
+      res.ackCmd = NOECHO ? 'NOECHO' : atMatch[1];
     }
     res.data = [];
     resMatch.forEach(function (match) {
       res.data.push(match.slice(2, match.length - 2));
     });
-    res.index = [rawData.indexOf(AT), lastMatchEndIndex];
+    res.index = [NOECHO ? 0 : rawData.indexOf(AT), lastMatchEndIndex];
   }
   return res;
 };

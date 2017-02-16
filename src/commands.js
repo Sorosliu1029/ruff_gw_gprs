@@ -41,9 +41,6 @@ function createCommands(cmdCommunication, clientCommunication) {
   };
 
   commands.writeRaw = function (cmdStr, cb) {
-    if (cmdStr.slice(0, 2) !== ('AT')) {
-      cmdStr = 'AT' + cmdStr;
-    }
     var cmd = Buffer.from(cmdStr + '\r');
     cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {

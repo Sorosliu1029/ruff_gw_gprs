@@ -30,14 +30,16 @@ function ClientCommunication(port, dispatcher) {
 util.inherits(ClientCommunication, EventEmitter);
 
 ClientCommunication.prototype._parseRecv = function (data) {
+  console.log('recv chunk: ' + data);
   var splitIndex = data.indexOf(Buffer.from(':'));
   if (splitIndex === -1) return;
   var recvHead = data.slice(0, splitIndex);
-  var recvBody = data.slice(splitIndex + 1);
+  var recvBody = data.slice(splitIndex + 3);
 
   var tmp = recvHead.toString().match(/(\d+)/g);
   var index = Number(tmp[0]);
   var length = Number(tmp[1]);
+  console.log('recv length: ', length);
   this._clientsCache[index].recvLength = length;
   this._clientsCache[index].cache = Buffer.concat([this._clientsCache[index].cache, recvBody]);
   if (this._clientsCache[index].cache.length === length) {
@@ -45,9 +47,13 @@ ClientCommunication.prototype._parseRecv = function (data) {
       "length": length,
       "bodyBuffer": Buffer.from(this._clientsCache[index].cache)
     });
+    console.log('msg emitted');
+    this._dispatcher.switchMode();
   } else {
     // TODO: concat more data to meet 'receive length'
     console.log('msgHead length: ' + length +' not equal to msgBody length: ' + this._clientsCache[index].cache.length);
+    console.log('msg body: >');
+    console.log(this._clientsCache[index].cache);
   }
 };
 
