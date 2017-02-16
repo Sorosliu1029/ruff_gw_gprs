@@ -6,10 +6,11 @@
 'use strict';
 
 var gpio = require('gpio');
+var Connection = require('./connection');
 
 var isPowerOn = false;
 
-function createCommands(communication) {
+function createCommands(cmdCommunication, clientCommunication) {
   var commands = Object.create(null);
 
   commands._powerToggle = function (cb) {
@@ -20,7 +21,7 @@ function createCommands(communication) {
           // wait for a short time to make power stable
           isPowerOn = !isPowerOn;
           setTimeout(function () {
-            communication.emit(isPowerOn ? 'ready' : 'end');
+            cmdCommunication.emit(isPowerOn ? 'ready' : 'end');
             cb && cb(error2 || error1);
           }, 2500);
         });
@@ -44,7 +45,7 @@ function createCommands(communication) {
       cmdStr = 'AT' + cmdStr;
     }
     var cmd = Buffer.from(cmdStr + '\r');
-    communication.pushCmd(cmd, function (error, result) {
+    cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {
         console.log(error);
         cb && cb(error);
@@ -56,7 +57,7 @@ function createCommands(communication) {
   commands._cmd2do = function (cmdType, cmdArray, removeCmdHeader, checkStatus, statusIndex, cb) {
     var cmd;
     var cmdStr = cmdArray[0];
-    var writeValue = cmdArray[1];
+    var writeValue = cmdArray.slice(1).join(',');
     switch (cmdType) {
       case "read":
         cmd = generateReadCmd(cmdStr);
@@ -71,7 +72,7 @@ function createCommands(communication) {
         cmd = generateExecutionCmd(cmdStr);
         break;
     }
-    communication.pushCmd(cmd, function (error, result) {
+    cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {
         console.log(error);
         cb && cb(error);
@@ -186,30 +187,35 @@ function createCommands(communication) {
     });
   };
 
+  // do it in `ruff-async` ways : async.series()
   commands.init = function (cb) {
     var that = this;
     this.setGprsAttach(1, function (error, result) {
       if (error || result[0] !== 'OK') {
-        console.log('set gprs attach result: |', result);
         cb && cb(error ? error : new Error('set GPRS attach error'));
+        return;
       }
       that.setMultiConn(1, function (error, result) {
         if (error || result[0] !== 'OK') {
           cb && cb(error ? error : new Error('set multi connection error'));
+          return;
         }
         that.setApn('CMNET', '', '', function (error, result) {
           if (error || result[0] !== 'OK') {
             cb && cb(error ? error : new Error('set APN error'));
+            return;
           }
           that.bringUpConn(function (error, result) {
             if (error || result[0] !== 'OK') {
               cb && cb(error ? error : new Error('bring up connection error'));
+              return;
             }
             that.getIP(function (error, result) {
               if (error) {
                 cb && cb(error);
+                return;
               }
-              communication.emit('up');
+              cmdCommunication.emit('up');
               cb && cb(null, result);
             });
           });
@@ -223,7 +229,7 @@ function createCommands(communication) {
       if (error) {
         cb && cb(error);
       }
-      communication.emit('down');
+      cmdCommunication.emit('down');
       cb && cb(null, result);
     });
   };
@@ -253,6 +259,7 @@ function createCommands(communication) {
       }
       var code = result[0];
       var ipState = result[1];
+      console.log('ip state: ' + ipState);
       var connections = [];
       result[2].split('\r\n').filter(function (conn) {
         // last splited result would be ''
@@ -268,6 +275,19 @@ function createCommands(communication) {
       });
       cb && cb(null, connections);
     });
+  };
+
+  commands._ipStart = function (index, host, port, cb) {
+    this._cmd2do('write', ['+CIPSTART', '"'+index+'"', '"TCP"', '"'+host+'"', '"'+port+'"'], false, true, 0, function (error, result) {
+      if (error) {
+        cb && cb(error);
+      }
+      cb && cb(null, result);
+    });
+  };
+
+  commands.createConnection = function (host, port) {
+    return new Connection(cmdCommunication, clientCommunication, 0, host, port);
   };
 
   return commands;

@@ -6,29 +6,33 @@
 'use strict';
 
 var driver = require('ruff-driver');
-var Communication = require('./communication');
+var Dispatcher = require('./dispatcher');
+var CmdCommunication = require('./cmd-communication');
+var ClientCommunication = require('./client-communication');
 var createCommands = require('./commands');
 
 module.exports = driver({
 
     attach: function (inputs, context) {
         this._uart = inputs['uart'];
-        this._communication = new Communication(this._uart);
-        this._commands = createCommands(this._communication);
+        this._dispatcher = new Dispatcher(this._uart);
+        this._cmdCommunication = new CmdCommunication(this._uart, this._dispatcher);
+        this._clientCommunication = new ClientCommunication(this._uart, this._dispatcher);
+        this._commands = createCommands(this._cmdCommunication, this._clientCommunication);
         var that = this;
-        this._communication.on('ready', function () {
+        this._cmdCommunication.on('ready', function () {
             that.emit('ready');
         });
-        this._communication.on('end', function () {
+        this._cmdCommunication.on('end', function () {
             that.emit('end');
         });
-        this._communication.on('up', function() {
+        this._cmdCommunication.on('up', function() {
             that.emit('up');
         });
-        this._communication.on('down', function () {
+        this._cmdCommunication.on('down', function () {
             that.emit('down');
         });
-        this._communication.on('error', function (error) {
+        this._cmdCommunication.on('error', function (error) {
             that.emit('error', error);
         });
         // TODO: bind public functions
