@@ -19,11 +19,11 @@ $('#gprs').on('end', function () {
 $('#gprs').init(); // 进入GPRS网络
 $('#gprs').deInit(); // 退出GPRS网络
 
-// 连接网络后进入up事件
+// 连接网络后进入up事件(CIPMUX+CSTT+CIICR+CIFSR)
 $('#gprs').on('up', function () {
 });
 
-// 退出网络后进入down事件
+// 退出网络后进入down事件(CIPSHUT)
 $('#gprs').on('down', function () {
 });
 
@@ -37,11 +37,11 @@ $('#gprs').on('error', function () {
 - TCP connection
 
 ```javascript
-// 获取IP地址（需要在'up'事件中调用）
+// 获取IP地址（需要在'up'事件中调用）(CIFSR)
 $('#gprs').getIP(function (error, ip) {
 });
 
-// 获取所有的可用连接状态
+// 获取所有的可用连接状态(CIPSTATUS)
 $('#gprs').getConnections(function (error, connections) {
 	// conn.id 连接ID
 	// conn.ip 连接IP
@@ -58,14 +58,18 @@ $('#gprs').getConnections(function (error, connections) {
 var host = '10.185.255.100';
 var port = 8888;
 
+// CIPSTART
 var client = $('#gprs').createConnection(host, port);
 
 // 连接成功进入connect事件
 client.on('connect', function () {
+    // 测试如果写入的数据没有及时发送出去的情况[TODO]
+    // CIPSEND (length)
 	client.write('I\'m client!'); // 向连接写入数据
 });
 
 // 接收数据后进入data事件
+// 测试接收data过程中ring或SMS上报的情况[TODO]
 client.on('data', function (buffer) {
 	console.log('REVC: ' + buffer.toString());
 	client1.destroy(); // 关闭连接
@@ -73,6 +77,14 @@ client.on('data', function (buffer) {
 
 // 关闭连接后进入close事件
 client.on('close', function () {
+});
+
+// server发送EOF进入end事件[TODO]
+client.on('end', function () {
+});
+
+// client发送完成进入drain事件[TODO]
+client.on('drain', function () {
 });
 
 // 当错误发生进入error事件（比如连接失败等）
