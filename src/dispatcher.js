@@ -11,11 +11,19 @@ var ReadStreaming = require('./read-streaming');
 
 var RECV = Buffer.from('+RECEIVE');
 
+var CONNECTION_RELATED = new RegExp(/(\d),\s(SEND OK|SEND FAIL|CONNECT OK|CONNECT FAIL|ALREADY CONNECT|CLOSED)\r\n/);
+
 var MODE = {
   CMD: 0,
   DATA: 1
 };
 
+
+/*
+ * Dispatcher is used to gather all data from UART port,
+ * and distribute gathered data to CmdCommunication or ClientCommunication.
+ * Dispatcher has two modes: 1. CMD mode, 2. DATA mode.
+ */
 function Dispatcher(port) {
   EventEmitter.call(this);
   this._port = port;
@@ -25,7 +33,8 @@ function Dispatcher(port) {
   this._readStream = new ReadStreaming(port);
   this._readStream.on('data', this.dispatch.bind(this));
   this._readStream.on('error', function () {
-    throw new Error('UART is crashed');
+    // throw new Error('UART is crashed');
+    console.log('UART is crashed');
   });
   this._readStream.start();
 };
@@ -37,8 +46,14 @@ Dispatcher.prototype.switchMode = function () {
 }
 
 Dispatcher.prototype.dispatch = function (data) {
-  console.log('dispatcher ' + data);
-  if (this._mode === MODE.DATA) {
+  console.log('dispatcher data str:<' + data + '>');
+  // console.log('dispatcher buffer:');
+  // console.log(data);
+  var connectionRelatedMatch = data.toString().match(CONNECTION_RELATED);
+  if (connectionRelatedMatch) {
+    this.emit('clientRelated', connectionRelatedMatch.slice(1));
+  }
+  else if (this._mode === MODE.DATA) {
     this.emit('recv', data);
   } else if (data.slice(0, RECV.length).equals(RECV)) {
     this.switchMode();

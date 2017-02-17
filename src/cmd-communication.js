@@ -10,6 +10,7 @@ var util = require('util');
 var Queue = require('ruff-async').Queue;
 
 var AT = Buffer.from('AT');
+var TERMINATOR = 0x1a;
 
 var State = {
   idle: 0,
@@ -22,6 +23,7 @@ function CmdCommunication(port, dispatcher) {
   EventEmitter.call(this);
   this._cs = State.idle;
   this._ignoreEcho = false;
+  this._ignoreNewlineOnce = false;
   this._port = port;
   this._cmdQueue = new Queue(this._processCmd);
   this._pendingData = new Buffer(0);
@@ -33,21 +35,28 @@ function CmdCommunication(port, dispatcher) {
 util.inherits(CmdCommunication, EventEmitter);
 
 CmdCommunication.prototype._parseData = function (data) {
-  if (this._ignoreEcho === true) {
-    var sendResultReg = new RegExp(/(\d),\sSEND\s(OK|FAIL)/);
-    var sendResultMatch = data.toString().match(sendResultReg);
-    if(sendResultMatch) {
-      var clientIndex = Number(sendResultMatch[1]);
-      var sendResult = sendResultMatch[2];
+  if (this._ignoreEcho) {
+    if (this._ignoreNewlineOnce) {
+      this._ignoreNewlineOnce = false;
       this._ignoreEcho = false;
-      console.log('send result index: ' + clientIndex + ' result: ' + sendResult);
+      this.emit('sendDone');
+    } else if (data[data.length-1] === TERMINATOR) {
+      this._ignoreNewlineOnce = true;
     }
+  //   var sendResultReg = new RegExp(/(\d),\sSEND\s(OK|FAIL)/);
+  //   var sendResultMatch = data.toString().match(sendResultReg);
+  //   if(sendResultMatch) {
+  //     var clientIndex = Number(sendResultMatch[1]);
+  //     var sendResult = sendResultMatch[2];
+  //     this._ignoreEcho = false;
+  //     console.log('send result index: ' + clientIndex + ' result: ' + sendResult);
+  //   }
     return;
   }
   if (this._cs === State.idle) {
     console.log('receive data when IDLE! : ', data.toString());
     // when in idle state, it means 'data' isn't for cmd, so dispatch it to client communication
-    this._dispatcher.emit('clientRelated', data);
+    // this._dispatcher.emit('clientRelated', data);
     return;
   }
   this._pendingData = Buffer.concat([this._pendingData, data]);
@@ -147,12 +156,18 @@ CmdCommunication.prototype._getResponse = function (callback) {
   var that = this;
 
   this.on('responseDone', responseDoneCleanup);
+  this.on('sendDone', sendDoneCleanup);
 
   function responseDoneCleanup(error, response) {
     that.removeListener('responseDone', responseDoneCleanup);
     that._cs = State.idle;
     callback(error, response.data);
   };
+
+  function sendDoneCleanup() {
+    that.removeListener('sendDone', sendDoneCleanup);
+    that._cs = State.idle;
+  }
 };
 
 CmdCommunication.prototype._consume = function (length) {

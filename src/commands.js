@@ -41,6 +41,7 @@ function createCommands(cmdCommunication, clientCommunication) {
   };
 
   commands.writeRaw = function (cmdStr, cb) {
+    console.log('cmd str: ' + cmdStr);
     var cmd = Buffer.from(cmdStr + '\r');
     cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {
@@ -284,7 +285,13 @@ function createCommands(cmdCommunication, clientCommunication) {
   };
 
   commands.createConnection = function (host, port) {
-    return new Connection(cmdCommunication, clientCommunication, 0, host, port);
+    var conn;
+    var unusedConnectionIndex = clientCommunication.getUnusedConnections();
+    if (unusedConnectionIndex !== -1) {
+      conn =  new Connection(cmdCommunication, clientCommunication, unusedConnectionIndex, host, port);
+      clientCommunication.setConnectionUsed(unusedConnectionIndex);
+      return conn;
+    }
   };
 
   return commands;
