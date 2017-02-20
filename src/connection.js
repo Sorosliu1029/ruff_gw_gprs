@@ -45,6 +45,7 @@ util.inherits(Connection, EventEmitter);
 
 Connection.prototype.ipStart = function (index, host, port, cb) {
   var cmd = Buffer.from('AT+CIPSTART="' + index + '","TCP","' + host + '","' + port + '"\r');
+  console.log('ip start cmd: ' + cmd);
   this._cmdCommunication.pushCmd(cmd, function (error, result) {
     if (error) {
       console.log(error);

@@ -9,9 +9,10 @@ var EventEmitter = require('events');
 var util = require('util');
 var ReadStreaming = require('./read-streaming');
 
-var RECV = Buffer.from('+RECEIVE');
-
+var POWER_ON_READY = new RegExp(/(Call|SMS)\sReady\r\n/);
 var CONNECTION_RELATED = new RegExp(/(\d),\s(SEND OK|SEND FAIL|CONNECT OK|CONNECT FAIL|ALREADY CONNECT|CLOSED)\r\n/);
+var RECV = Buffer.from('+RECEIVE');
+var CRLF = Buffer.from('\r\n');
 
 var MODE = {
   CMD: 0,
@@ -49,6 +50,16 @@ Dispatcher.prototype.dispatch = function (data) {
   console.log('dispatcher data str:<' + data + '>');
   // console.log('dispatcher buffer:');
   // console.log(data);
+  // if (data.equals(CRLF)) {
+  //   return;
+  // }
+  var powerOnReadyMatch = data.toString().match(POWER_ON_READY);
+  if (powerOnReadyMatch) {
+    if (powerOnReadyMatch[1] === 'SMS') {
+      this.emit('powerOnReady');
+    }
+    return;
+  }
   var connectionRelatedMatch = data.toString().match(CONNECTION_RELATED);
   if (connectionRelatedMatch) {
     this.emit('clientRelated', connectionRelatedMatch.slice(1));

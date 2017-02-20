@@ -72,7 +72,6 @@ ClientCommunication.prototype._parseRecv = function (data) {
       "length": length,
       "bodyBuffer": Buffer.from(this._clientsCache[index].cache)
     });
-    console.log('msg emitted');
     this._dispatcher.switchMode();
   } else {
     // TODO: concat more data to meet 'receive length'

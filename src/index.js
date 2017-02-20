@@ -18,7 +18,7 @@ module.exports = driver({
         this._dispatcher = new Dispatcher(this._uart);
         this._cmdCommunication = new CmdCommunication(this._uart, this._dispatcher);
         this._clientCommunication = new ClientCommunication(this._uart, this._dispatcher);
-        this._commands = createCommands(this._cmdCommunication, this._clientCommunication);
+        this._commands = createCommands(this._dispatcher, this._cmdCommunication, this._clientCommunication);
         var that = this;
         this._cmdCommunication.on('ready', function () {
             that.emit('ready');

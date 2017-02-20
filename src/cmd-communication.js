@@ -22,8 +22,10 @@ var NOECHO = false;
 function CmdCommunication(port, dispatcher) {
   EventEmitter.call(this);
   this._cs = State.idle;
+
   this._ignoreEcho = false;
   this._ignoreNewlineOnce = false;
+  
   this._port = port;
   this._cmdQueue = new Queue(this._processCmd);
   this._pendingData = new Buffer(0);

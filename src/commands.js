@@ -6,39 +6,13 @@
 'use strict';
 
 var gpio = require('gpio');
+var series = require('ruff-async').series;
 var Connection = require('./connection');
 
 var isPowerOn = false;
 
-function createCommands(cmdCommunication, clientCommunication) {
+function createCommands(dispatcher, cmdCommunication, clientCommunication) {
   var commands = Object.create(null);
-
-  commands._powerToggle = function (cb) {
-    $('#PWR_GPRS').setDirection(gpio.Direction.out);
-    $('#PWR_GPRS').write(gpio.Level.low, function (error1) {
-      setTimeout(function () {
-        $('#PWR_GPRS').write(gpio.Level.high, function (error2) {
-          // wait for a short time to make power stable
-          isPowerOn = !isPowerOn;
-          setTimeout(function () {
-            cmdCommunication.emit(isPowerOn ? 'ready' : 'end');
-            cb && cb(error2 || error1);
-          }, 2500);
-        });
-        // 1s (a little more) to power gprs up / down
-      }, 1100);
-    });
-  };
-
-  commands.powerOn = function (cb) {
-    if (isPowerOn) return;
-    this._powerToggle(cb);
-  };
-
-  commands.powerOff = function (cb) {
-    if (!isPowerOn) return;
-    this._powerToggle(cb);
-  };
 
   commands.writeRaw = function (cmdStr, cb) {
     console.log('cmd str: ' + cmdStr);
@@ -93,16 +67,76 @@ function createCommands(cmdCommunication, clientCommunication) {
     });
   };
 
+  commands.powerOn = function () {
+    if (isPowerOn) return;
+
+    var that = this;
+    $('#PWR_GPRS').setDirection(gpio.Direction.out);
+    $('#PWR_GPRS').write(gpio.Level.low, function (error1) {
+      setTimeout(function () {
+        $('#PWR_GPRS').write(gpio.Level.high, function (error2) {
+          setTimeout(function () {
+            that.writeRaw('AT', function (error, result) {
+              if (error) {
+                console.log(error);
+                return;
+              }
+              if (result[0] === 'OK') {
+                dispatcher.on('powerOnReady', function () {
+                  isPowerOn = !isPowerOn;
+                  series([
+                    function (next) {
+                      that.setMultiConn(1, function (error, result) {
+                        next(error, result);
+                      });
+                    },
+                    function (next) {
+                      that.setNetworkRegistration(2, function (error, result) {
+                        next(error, result);
+                      });
+                    }
+                  ], function (error, values) {
+                    if (error) {
+                      console.log(error);
+                      return;
+                    }
+                    if (values[0] === 'OK' && values[1] === 'OK') {
+                      cmdCommunication.emit('ready');
+                      isPowerOn = !isPowerOn;
+                    }
+                  });
+                });
+              }
+            });
+          }, 4000);
+        });
+        // 1s (a little more) to power gprs up / down
+      }, 1100);
+    });
+  };
+
+  commands.powerOff = function () {
+    if (!isPowerOn) return;
+    this._cmd2do('write', ['+CPOWD', '1'], false, false, -1, function (error, result) {
+      if (error) {
+        console.log(error);
+        return;
+      }
+      if (result[0] === 'NORMAL POWER DOWN') {
+        cmdCommunication.emit('end');
+        isPowerOn = !isPowerOn;
+      }
+    });
+  };
+
   commands.getSignalStrength = function (cb) {
     this._cmd2do('exec', ['+CSQ'], true, true, -1, function (error, result) {
       if (error) {
         cb && cb(eeror);
+        return;
       }
       var tmp = result.split(',');
-      cb && cb(null, {
-        "rssi": tmp[0],
-        "ber": tmp[1]
-      });
+      cb && cb(null, tmp[0]);
     });
   };
 
@@ -110,37 +144,42 @@ function createCommands(cmdCommunication, clientCommunication) {
     this._cmd2do('read', ['+CGATT'], true, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
+        return;
       }
       cb && cb(null, result === '1');
     });
   };
 
-  // TODO: match the API spec
   commands.getCellInfo = function (cb) {
     this._cmd2do('read', ['+CREG'], true, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
+        return;
       }
       var tmp = result.split(',');
-      cb && cb(null, {
-        "n": tmp[0],
-        "stat": tmp[1] === '1'
-      });
-    })
+      cb && cb(null, tmp[2], tmp[3]);
+    });
   };
 
   commands.getSimInfo = function (cb) {
     var that = this;
-    this._cmd2do('exec', ['+CCID'], false, true, -1, function (error, iccid) {
+    series([
+      function (next) {
+        that._cmd2do('exec', ['+CCID'], false, true, -1, function (error, result) {
+          next(error, result[0]);
+        });
+      },
+      function (next) {
+        that._cmd2do('exec', ['+CIMI'], false, true, -1, function (error, result) {
+          next(error, result[0]);
+        });
+      }
+    ], function (error, values) {
       if (error) {
         cb && cb(error);
+        return;
       }
-      that._cmd2do('exec', ['+CIMI'], false, true, -1, function (error, imsi) {
-        if (error) {
-          cb && cb(error);
-        }
-        cb && cb(null, iccid, imsi);
-      });
+      cb && cb(null, values[0], values[1]);
     });
   };
 
@@ -161,8 +200,19 @@ function createCommands(cmdCommunication, clientCommunication) {
     this._cmd2do('write', ['+CIPMUX', value], false, true, -1, function (error, result) {
       if (error) {
         cb && cb(error);
+        return;
       }
-      cb && cb(null, result);
+      cb && cb(null, result[0]);
+    });
+  };
+
+  commands.setNetworkRegistration = function (value, cb) {
+    this._cmd2do('write', ['+CREG', value], false, true, -1, function (error, result) {
+      if (error) {
+        cb && cb(error);
+        return;
+      }
+      cb && cb(null, result[0]);
     });
   };
 
@@ -276,7 +326,7 @@ function createCommands(cmdCommunication, clientCommunication) {
   };
 
   commands._ipStart = function (index, host, port, cb) {
-    this._cmd2do('write', ['+CIPSTART', '"'+index+'"', '"TCP"', '"'+host+'"', '"'+port+'"'], false, true, 0, function (error, result) {
+    this._cmd2do('write', ['+CIPSTART', '"' + index + '"', '"TCP"', '"' + host + '"', '"' + port + '"'], false, true, 0, function (error, result) {
       if (error) {
         cb && cb(error);
       }
@@ -287,8 +337,9 @@ function createCommands(cmdCommunication, clientCommunication) {
   commands.createConnection = function (host, port) {
     var conn;
     var unusedConnectionIndex = clientCommunication.getUnusedConnections();
+    console.log('unused connection index: ' + unusedConnectionIndex);
     if (unusedConnectionIndex !== -1) {
-      conn =  new Connection(cmdCommunication, clientCommunication, unusedConnectionIndex, host, port);
+      conn = new Connection(cmdCommunication, clientCommunication, unusedConnectionIndex, host, port);
       clientCommunication.setConnectionUsed(unusedConnectionIndex);
       return conn;
     }
