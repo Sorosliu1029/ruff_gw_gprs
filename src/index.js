@@ -26,8 +26,8 @@ module.exports = driver({
         this._cmdCommunication.on('end', function () {
             that.emit('end');
         });
-        this._cmdCommunication.on('up', function() {
-            that.emit('up');
+        this._cmdCommunication.on('up', function(localIP) {
+            that.emit('up', localIP);
         });
         this._cmdCommunication.on('down', function () {
             that.emit('down');
