@@ -31,6 +31,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
         break;
        case 'CLOSED':
         that.emit('close');
+        that._clientCommunication.setConnectionUnused(that._index);
         break;
       default:
         that.emit('error', event);
@@ -83,11 +84,12 @@ Connection.prototype.destroy = function () {
     if (error) {
       that.emit('error', error);
     } else {
-      var tmp = result[0].match(/(\d)\s(CLOSE.*)\r\n/);
+      var tmp = result[0].match(/(\d),\s(CLOSE.*)/);
       if (Number(tmp[1]) !== that._index) {
         that.emit('error', new Error('destroy index not identical'));
       } else if (tmp[2] === 'CLOSE OK') {
         that.emit('close');
+        that._clientCommunication.setConnectionUnused(that._index);
       } else {
         that.emit('error', new Error('unknown error'));
       }

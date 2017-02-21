@@ -118,13 +118,11 @@ CmdCommunication.prototype.sendRawData = function (data, callback) {
 
 CmdCommunication.prototype.pushCmd = function (cmd, callback) {
   if (cmd) {
-    console.log('cmd: ' + cmd);
     this._cmdQueue.push(this, [cmd], callback);
   }
 };
 
 CmdCommunication.prototype._processCmd = function (cmdData, callback) {
-  console.log('cmd state: '+ this._cs);
   if (this._cs !== State.idle) return;
 
   this._getResponse(invokeCallbackOnce);

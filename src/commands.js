@@ -338,6 +338,8 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
       conn = new Connection(cmdCommunication, clientCommunication, unusedConnectionIndex, host, port);
       clientCommunication.setConnectionUsed(unusedConnectionIndex);
       return conn;
+    } else {
+      cmdCommunication.emit('error', new Error('no unused connection left'));
     }
   };
 
