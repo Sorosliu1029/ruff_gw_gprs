@@ -21,6 +21,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
       if (error) {
         console.log(error);
         cb && cb(error);
+        return;
       }
       cb && cb(null, result);
     });
@@ -307,6 +308,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
     this._cmd2do('exec', ['+CIPSTATUS'], false, true, 0, function (error, result) {
       if (error) {
         cb && cb(error);
+        return;
       }
       var code = result[0];
       var ipState = result[1];
@@ -325,15 +327,6 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
         connections.push(connObj);
       });
       cb && cb(null, connections);
-    });
-  };
-
-  commands._ipStart = function (index, host, port, cb) {
-    this._cmd2do('write', ['+CIPSTART', '"' + index + '"', '"TCP"', '"' + host + '"', '"' + port + '"'], false, true, 0, function (error, result) {
-      if (error) {
-        cb && cb(error);
-      }
-      cb && cb(null, result);
     });
   };
 

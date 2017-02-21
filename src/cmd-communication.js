@@ -10,7 +10,8 @@ var util = require('util');
 var Queue = require('ruff-async').Queue;
 
 var AT = Buffer.from('AT');
-var TERMINATOR = 0x1a;
+var TERMINATOR = Buffer.from([0x1a, 0x0d]);
+var CRLF = Buffer.from('\r\n');
 
 var State = {
   idle: 0,
@@ -25,7 +26,7 @@ function CmdCommunication(port, dispatcher) {
 
   this._ignoreEcho = false;
   this._ignoreNewlineOnce = false;
-  
+
   this._port = port;
   this._cmdQueue = new Queue(this._processCmd);
   this._pendingData = new Buffer(0);
@@ -38,27 +39,17 @@ util.inherits(CmdCommunication, EventEmitter);
 
 CmdCommunication.prototype._parseData = function (data) {
   if (this._ignoreEcho) {
-    if (this._ignoreNewlineOnce) {
+    if (this._ignoreNewlineOnce && data.equals(CRLF)) {
       this._ignoreNewlineOnce = false;
       this._ignoreEcho = false;
-      this.emit('sendDone');
-    } else if (data[data.length-1] === TERMINATOR) {
+      this.emit('responseDone', null);
+    } else if (data.slice(data.length-2).equals(TERMINATOR)) {
       this._ignoreNewlineOnce = true;
     }
-  //   var sendResultReg = new RegExp(/(\d),\sSEND\s(OK|FAIL)/);
-  //   var sendResultMatch = data.toString().match(sendResultReg);
-  //   if(sendResultMatch) {
-  //     var clientIndex = Number(sendResultMatch[1]);
-  //     var sendResult = sendResultMatch[2];
-  //     this._ignoreEcho = false;
-  //     console.log('send result index: ' + clientIndex + ' result: ' + sendResult);
-  //   }
     return;
   }
   if (this._cs === State.idle) {
     console.log('receive data when IDLE! : ', data.toString());
-    // when in idle state, it means 'data' isn't for cmd, so dispatch it to client communication
-    // this._dispatcher.emit('clientRelated', data);
     return;
   }
   this._pendingData = Buffer.concat([this._pendingData, data]);
@@ -127,15 +118,18 @@ CmdCommunication.prototype.sendRawData = function (data, callback) {
 
 CmdCommunication.prototype.pushCmd = function (cmd, callback) {
   if (cmd) {
+    console.log('cmd: ' + cmd);
     this._cmdQueue.push(this, [cmd], callback);
   }
 };
 
 CmdCommunication.prototype._processCmd = function (cmdData, callback) {
+  console.log('cmd state: '+ this._cs);
   if (this._cs !== State.idle) return;
 
   this._getResponse(invokeCallbackOnce);
 
+  console.log(cmdData.toString());
   this._port.write(cmdData, function (error) {
     if (error) {
       invokeCallbackOnce(error);
@@ -158,18 +152,13 @@ CmdCommunication.prototype._getResponse = function (callback) {
   var that = this;
 
   this.on('responseDone', responseDoneCleanup);
-  this.on('sendDone', sendDoneCleanup);
 
   function responseDoneCleanup(error, response) {
     that.removeListener('responseDone', responseDoneCleanup);
     that._cs = State.idle;
-    callback(error, response.data);
+    callback(error, response  ? response.data : null);
   };
 
-  function sendDoneCleanup() {
-    that.removeListener('sendDone', sendDoneCleanup);
-    that._cs = State.idle;
-  }
 };
 
 CmdCommunication.prototype._consume = function (length) {

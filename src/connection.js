@@ -27,6 +27,10 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
         that.emit('connect');
         break;
       case 'SEND OK':
+        that.emit('drain');
+        break;
+       case 'CLOSED':
+        that.emit('close');
         break;
       default:
         that.emit('error', event);
@@ -37,7 +41,6 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
     if (error) {
       that.emit('error', error);
     }
-    console.log('connection ip start result: ' + result);
   });
 };
 
@@ -55,16 +58,40 @@ Connection.prototype.ipStart = function (index, host, port, cb) {
       error = new Error('response ends with error');
       cb && cb(error);
     } else {
-      cb && cb(null, result);
+      cb && cb(null, result[0]);
     }
   });
 };
 
 Connection.prototype.write = function (data) {
-  var writeBuf = generateWriteBuffer(this._index, data);
-  console.log('write buf: ' + writeBuf.toString());
-  this._cmdCommunication.pushCmd(writeBuf, function (error, result) {
-    console.log('send result: ' + result);
+  var that = this;
+  var sendCmd = generateSendCmd(this._index);
+  this._cmdCommunication.pushCmd(sendCmd, function (error, result) {
+    if (error) {
+      that.emit('error', error);
+    } else if (result[0] === '>') {
+      var writeBuf = generateWriteBuffer(data);
+      that._cmdCommunication.pushCmd(writeBuf);
+    }
+  });
+};
+
+Connection.prototype.destroy = function () {
+  var that = this;
+  var destroyCmd = generateDestroyCmd(this._index);
+  this._cmdCommunication.pushCmd(destroyCmd, function (error, result) {
+    if (error) {
+      that.emit('error', error);
+    } else {
+      var tmp = result[0].match(/(\d)\s(CLOSE.*)\r\n/);
+      if (Number(tmp[1]) !== that._index) {
+        that.emit('error', new Error('destroy index not identical'));
+      } else if (tmp[2] === 'CLOSE OK') {
+        that.emit('close');
+      } else {
+        that.emit('error', new Error('unknown error'));
+      }
+    }
   });
 };
 
@@ -72,8 +99,12 @@ function generateSendCmd(index) {
   return Buffer.from('AT+CIPSEND=' + index + '\r');
 };
 
-function generateWriteBuffer(index, data) {
-  return Buffer.concat([Buffer.from('AT+CIPSEND=' + index + '\r\n' + data.toString()), Buffer.from([0x1a])]);
+function generateWriteBuffer(data) {
+  return Buffer.concat([Buffer.from(data), Buffer.from([0x1a, 0x0d])]);
+};
+
+function generateDestroyCmd(index) {
+  return Buffer.from('AT+CIPCLOSE=' + index + '\r');
 };
 
 module.exports = Connection;
