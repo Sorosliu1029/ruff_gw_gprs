@@ -58,27 +58,34 @@ ClientCommunication.prototype.setConnectionUsed = function (index) {
 
 ClientCommunication.prototype._parseRecv = function (data) {
   console.log('recv chunk: ' + data);
+  var index;
+  var length;
   if (this._currentReceiver === null) {
     this._currentReceiverCache = Buffer.concat([this._currentReceiverCache, data]);
     var headerMatch = this._currentReceiverCache.toString().match(HEADER);
     if (headerMatch) {
-      var index = Number(headerMatch[1]);
+      index = Number(headerMatch[1]);
       this._currentReceiver = index;
-      var length = Number(headerMatch[2]);
+      length = Number(headerMatch[2]);
       this._clientsCache[index].recvLength = length;
       this._clientsCache[index].cache = this._currentReceiverCache.slice(this._currentReceiverCache.indexOf(Buffer.from(':')) + 3);
       this._currentReceiverCache = new Buffer(0);
+    } else {
+      return;
     }
   } else {
+    index = this._currentReceiver;
     this._clientsCache[index].cache = Buffer.concat([this._clientsCache[index].cache, data]);
   }
 
+  length = this._clientsCache[index].recvLength;
   if (this._clientsCache[index].cache.length === length) {
     this.emit('msg' + index, {
       "length": length,
       "bodyBuffer": Buffer.from(this._clientsCache[index].cache)
     });
     this._clientsCache[index].cache = new Buffer(0);
+    this._currentReceiver = null;
     this._dispatcher.switchMode();
   } else {
     // console.log('msgHead length: ' + length + ' not equal to msgBody length: ' + this._clientsCache[index].cache.length);
