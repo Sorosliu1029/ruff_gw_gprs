@@ -53,6 +53,8 @@ CmdCommunication.prototype._parseData = function (data) {
     return;
   }
   this._pendingData = Buffer.concat([this._pendingData, data]);
+
+  // TODO: when in send mode, wait until send over to complete this atom
   if (this._cs === State.waitingResponse) {
     var res = basicParseResponseWithData(this._pendingData);
     if (res.valid) {
@@ -127,7 +129,6 @@ CmdCommunication.prototype._processCmd = function (cmdData, callback) {
 
   this._getResponse(invokeCallbackOnce);
 
-  console.log(cmdData.toString());
   this._port.write(cmdData, function (error) {
     if (error) {
       invokeCallbackOnce(error);

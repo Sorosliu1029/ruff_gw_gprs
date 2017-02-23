@@ -62,19 +62,26 @@ Dispatcher.prototype.dispatch = function (data) {
     var beginIndex = dataStr.indexOf(connectionRelatedMatch[1]);
     var endIndex = dataStr.indexOf(connectionRelatedMatch[2]) + connectionRelatedMatch[2].length + 2;
     data = Buffer.concat([data.slice(0, beginIndex), data.slice(endIndex, data.length)]);
-    if (!data) return;
-  }
-
-  if (this._mode === MODE.DATA) {
+    var trimmedDataStr = data.toString().trim();
+    if (!trimmedDataStr) {
+      return;
+    } else {
+      this.dispatch(Buffer.from(trimmedDataStr));
+    }
+  } else if (this._mode === MODE.DATA) {
     this.emit('recv', data);
   } else {
     dataStr = data.toString();
     var recvMatch = dataStr.match(RECV);
+    var recvIndex;
     if (recvMatch) {
-      data = data.slice(dataStr.indexOf(recvMatch));
+      recvIndex = dataStr.indexOf(recvMatch);
+      var recvData = data.slice(recvIndex);
       this.switchMode();
-      this.emit('recv', data);
-    } else {
+      this.emit('recv', recvData);
+      data = data.slice(0, recvIndex > 1 ? recvIndex - 2 : 0);
+    }
+    if (data.length) {
       this.emit('cmd', data);
     }
   }
