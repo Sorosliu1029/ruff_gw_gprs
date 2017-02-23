@@ -336,7 +336,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
     console.log('unused connection index: ' + unusedConnectionIndex);
     if (unusedConnectionIndex !== -1) {
       conn = new Connection(cmdCommunication, clientCommunication, unusedConnectionIndex, host, port);
-      clientCommunication.setConnectionUsed(unusedConnectionIndex);
+      clientCommunication.setConnectionUsed(unusedConnectionIndex, conn);
       return conn;
     } else {
       cmdCommunication.emit('error', new Error('no unused connection left'));

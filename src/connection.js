@@ -31,6 +31,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
         break;
        case 'CLOSED':
         that.emit('close');
+        that.removeAllListeners();
         that._clientCommunication.setConnectionUnused(that._index);
         break;
       default:
@@ -67,12 +68,13 @@ Connection.prototype.ipStart = function (index, host, port, cb) {
 Connection.prototype.write = function (data) {
   var that = this;
   var sendCmd = generateSendCmd(this._index);
+  var writeBuf = generateWriteBuffer(data);
+  this._cmdCommunication.once('wait4Data' + this._index, function () {
+    that._cmdCommunication.sendRawData(writeBuf);
+  });
   this._cmdCommunication.pushCmd(sendCmd, function (error, result) {
     if (error) {
       that.emit('error', error);
-    } else if (result[0] === '>') {
-      var writeBuf = generateWriteBuffer(data);
-      that._cmdCommunication.pushCmd(writeBuf);
     }
   });
 };
@@ -89,6 +91,7 @@ Connection.prototype.destroy = function () {
         that.emit('error', new Error('destroy index not identical'));
       } else if (tmp[2] === 'CLOSE OK') {
         that.emit('close');
+        that.removeAllListeners();
         that._clientCommunication.setConnectionUnused(that._index);
       } else {
         that.emit('error', new Error('unknown error'));

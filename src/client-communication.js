@@ -25,7 +25,7 @@ function ClientCommunication(port, dispatcher) {
 
   this._allConnections = [];
   for (var i = 0; i < MAX_CONNECTION_NUM; i++) {
-    this._allConnections.push(false);
+    this._allConnections.push(undefined);
   }
 
   this._currentReceiver = null;
@@ -49,11 +49,13 @@ ClientCommunication.prototype.getUnusedConnections = function () {
 };
 
 ClientCommunication.prototype.setConnectionUnused = function (index) {
-  this._allConnections[index] = false;
+  // TODO: try to destruct older connection 
+  // this._allConnections[index] = undefined;
+  delete this._allConnections[index];
 };
 
-ClientCommunication.prototype.setConnectionUsed = function (index) {
-  this._allConnections[index] = true;
+ClientCommunication.prototype.setConnectionUsed = function (index, connection) {
+  this._allConnections[index] = connection;
 };
 
 ClientCommunication.prototype._parseRecv = function (data) {

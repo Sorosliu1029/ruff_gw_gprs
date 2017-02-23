@@ -62,11 +62,8 @@ Dispatcher.prototype.dispatch = function (data) {
     var beginIndex = dataStr.indexOf(connectionRelatedMatch[1]);
     var endIndex = dataStr.indexOf(connectionRelatedMatch[2]) + connectionRelatedMatch[2].length + 2;
     data = Buffer.concat([data.slice(0, beginIndex), data.slice(endIndex, data.length)]);
-    var trimmedDataStr = data.toString().trim();
-    if (!trimmedDataStr) {
-      return;
-    } else {
-      this.dispatch(Buffer.from(trimmedDataStr));
+    if (data.toString().trim()) {
+      this.dispatch(data);
     }
   } else if (this._mode === MODE.DATA) {
     this.emit('recv', data);

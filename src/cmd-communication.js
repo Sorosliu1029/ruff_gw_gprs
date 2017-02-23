@@ -43,7 +43,7 @@ CmdCommunication.prototype._parseData = function (data) {
       this._ignoreNewlineOnce = false;
       this._ignoreEcho = false;
       this.emit('responseDone', null);
-    } else if (data.slice(data.length-2).equals(TERMINATOR)) {
+    } else if (data.slice(data.length - 2).equals(TERMINATOR)) {
       this._ignoreNewlineOnce = true;
     }
     return;
@@ -54,7 +54,6 @@ CmdCommunication.prototype._parseData = function (data) {
   }
   this._pendingData = Buffer.concat([this._pendingData, data]);
 
-  // TODO: when in send mode, wait until send over to complete this atom
   if (this._cs === State.waitingResponse) {
     var res = basicParseResponseWithData(this._pendingData);
     if (res.valid) {
@@ -62,10 +61,12 @@ CmdCommunication.prototype._parseData = function (data) {
       console.log('---------------------------------');
       console.log('res cmd: ' + res.ackCmd);
       console.log('res data: ' + res.data);
-      if (res.type === 'enterIgnore') {
+      if (res.data[0] === '>') {
         this._ignoreEcho = true;
+        this.emit('wait4Data' + res.ackCmd[res.ackCmd.length-1]);
+      } else {
+        this.emit("responseDone", null, res);
       }
-      this.emit("responseDone", null, res);
     }
   }
 };
@@ -81,7 +82,6 @@ function basicParseResponseWithData(rawData) {
   var sendIndicatroMatch = rawDataStr.match(sendIndicatorReg);
   if ((NOECHO || atMatch) && sendIndicatroMatch) {
     res.valid = true;
-    res.type = "enterIgnore";
     res.ackCmd = NOECHO ? 'NOECHO' : atMatch[1];
     res.index = [0, rawData.length];
     res.data = ['>'];
@@ -155,7 +155,7 @@ CmdCommunication.prototype._getResponse = function (callback) {
   function responseDoneCleanup(error, response) {
     that.removeListener('responseDone', responseDoneCleanup);
     that._cs = State.idle;
-    callback(error, response  ? response.data : null);
+    callback(error, response ? response.data : null);
   };
 
 };
