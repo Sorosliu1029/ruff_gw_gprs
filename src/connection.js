@@ -15,6 +15,8 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
   this._index = index;
   this._host = host;
   this._port = port;
+  this._writeBufferCache = [];
+
   var that = this;
   this._clientCommunication.on('msg' + this._index, function (msgObj) {
     that.emit('data', msgObj.bodyBuffer);
@@ -29,7 +31,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
       case 'SEND OK':
         that.emit('drain');
         break;
-       case 'CLOSED':
+      case 'CLOSED':
         that.emit('close');
         that.removeAllListeners();
         that._clientCommunication.setConnectionUnused(that._index);
@@ -39,7 +41,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
         break;
     }
   });
-  this.ipStart(this._index, this._host, this._port, function(error, result) {
+  this.ipStart(this._index, this._host, this._port, function (error, result) {
     if (error) {
       that.emit('error', error);
     }
@@ -68,14 +70,23 @@ Connection.prototype.ipStart = function (index, host, port, cb) {
 Connection.prototype.write = function (data) {
   var that = this;
   var sendCmd = generateSendCmd(this._index);
-  var writeBuf = generateWriteBuffer(data);
-  this._cmdCommunication.once('wait4Data' + this._index, function () {
-    that._cmdCommunication.sendRawData(writeBuf);
-  });
   this._cmdCommunication.pushCmd(sendCmd, function (error, result) {
     if (error) {
       that.emit('error', error);
     }
+  });
+  var writeBuf = generateWriteBuffer(data);
+  this._writeBufferCache.push(writeBuf);
+  this._cmdCommunication.once('wait4Data' + this._index, function () {
+    console.log('write buf:');
+    console.log(that._writeBufferCache[0]);
+    that._cmdCommunication.sendRawData(that._writeBufferCache.shift(), function (error) {
+      if (error) {
+        console.log('client' + that._index + ' write error occur:');
+        console.log(error);
+        that._cmdCommunication.emit('responseDone', null);
+      }
+    });
   });
 };
 

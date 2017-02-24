@@ -33,6 +33,7 @@ function Dispatcher(port) {
 
   this._readStream = new ReadStreaming(port);
   this._readStream.on('data', this.dispatch.bind(this));
+  this.on('data', this.dispatch.bind(this));
   this._readStream.on('error', function () {
     // throw new Error('UART is crashed');
     console.log('UART is crashed');
@@ -60,6 +61,9 @@ Dispatcher.prototype.dispatch = function (data) {
   if (connectionRelatedMatch) {
     this.emit('clientRelated', connectionRelatedMatch.slice(1));
     var beginIndex = dataStr.indexOf(connectionRelatedMatch[1]);
+    if (data.slice(beginIndex-4, beginIndex).equals(Buffer.from('\r\n\r\n'))) {
+      beginIndex -= 2;
+    }
     var endIndex = dataStr.indexOf(connectionRelatedMatch[2]) + connectionRelatedMatch[2].length + 2;
     data = Buffer.concat([data.slice(0, beginIndex), data.slice(endIndex, data.length)]);
     if (data.toString().trim()) {

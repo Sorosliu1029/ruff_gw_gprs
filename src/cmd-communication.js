@@ -9,6 +9,8 @@ var EventEmitter = require('events');
 var util = require('util');
 var Queue = require('ruff-async').Queue;
 
+var RESPONSE_TIMEOUT = 10 * 1000;
+
 var AT = Buffer.from('AT');
 var TERMINATOR = Buffer.from([0x1a, 0x0d]);
 var CRLF = Buffer.from('\r\n');
@@ -39,12 +41,9 @@ util.inherits(CmdCommunication, EventEmitter);
 
 CmdCommunication.prototype._parseData = function (data) {
   if (this._ignoreEcho) {
-    if (this._ignoreNewlineOnce && data.equals(CRLF)) {
-      this._ignoreNewlineOnce = false;
+    if (data.indexOf(TERMINATOR) !== -1) {
       this._ignoreEcho = false;
       this.emit('responseDone', null);
-    } else if (data.slice(data.length - 2).equals(TERMINATOR)) {
-      this._ignoreNewlineOnce = true;
     }
     return;
   }
@@ -63,7 +62,7 @@ CmdCommunication.prototype._parseData = function (data) {
       console.log('res data: ' + res.data);
       if (res.data[0] === '>') {
         this._ignoreEcho = true;
-        this.emit('wait4Data' + res.ackCmd[res.ackCmd.length-1]);
+        this.emit('wait4Data' + res.ackCmd[res.ackCmd.length - 1]);
       } else {
         this.emit("responseDone", null, res);
       }
@@ -150,9 +149,14 @@ CmdCommunication.prototype._getResponse = function (callback) {
   this._cs = State.waitingResponse;
   var that = this;
 
+  var timerHandle = setTimeout(function () {
+    responseDoneCleanup(new Error('Response Timeout'));
+  }, RESPONSE_TIMEOUT);
+
   this.on('responseDone', responseDoneCleanup);
 
   function responseDoneCleanup(error, response) {
+    clearTimeout(timerHandle);
     that.removeListener('responseDone', responseDoneCleanup);
     that._cs = State.idle;
     callback(error, response ? response.data : null);

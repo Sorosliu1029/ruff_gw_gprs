@@ -81,14 +81,18 @@ ClientCommunication.prototype._parseRecv = function (data) {
   }
 
   length = this._clientsCache[index].recvLength;
-  if (this._clientsCache[index].cache.length === length) {
+  if (this._clientsCache[index].cache.length >= length) {
     this.emit('msg' + index, {
       "length": length,
-      "bodyBuffer": Buffer.from(this._clientsCache[index].cache)
+      "bodyBuffer": this._clientsCache[index].cache.slice(0, length)
     });
-    this._clientsCache[index].cache = new Buffer(0);
-    this._currentReceiver = null;
     this._dispatcher.switchMode();
+    this._currentReceiver = null;
+    var remain = this._clientsCache[index].cache.slice(length);
+    this._clientsCache[index].cache = new Buffer(0);
+    if (remain.length) {
+      this._dispatcher.emit('data', remain);
+    }
   } else {
     // console.log('msgHead length: ' + length + ' not equal to msgBody length: ' + this._clientsCache[index].cache.length);
     // console.log('msg body: >');
