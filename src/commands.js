@@ -79,12 +79,11 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
           setTimeout(function () {
             that.writeRaw('AT', function (error, result) {
               if (error) {
-                console.log(error);
+                cmdCommunication.emit('error', error);
                 return;
               }
               if (result[0] === 'OK') {
                 dispatcher.on('powerOnReady', function () {
-                  isPowerOn = !isPowerOn;
                   series([
                     function (next) {
                       that.setMultiConn(1, function (error, result) {
@@ -95,14 +94,23 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
                       that.setNetworkRegistration(2, function (error, result) {
                         next(error, result);
                       });
+                    },
+                    function (next) {
+                      that.setRejectIncomingCall(1, function (error, result) {
+                        next(error, result);
+                      });
                     }
                   ], function (error, values) {
                     if (error) {
-                      console.log(error);
+                      cmdCommunication.emit('error', error);
                       return;
                     }
-                    if (values[0] === 'OK' && values[1] === 'OK') {
-                      cmdCommunication.emit('ready');
+                    if (values.every(function (v) {
+                        return v === 'OK';
+                      })) {
+                      setTimeout(function () {
+                        cmdCommunication.emit('ready');
+                      }, 2000);
                       isPowerOn = !isPowerOn;
                     }
                   });
@@ -120,7 +128,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
     if (!isPowerOn) return;
     this._cmd2do('write', ['+CPOWD', '1'], false, false, null, function (error, result) {
       if (error) {
-        console.log(error);
+        cmdCommunication.emit('error', error);
         return;
       }
       if (result[0] === 'NORMAL POWER DOWN') {
@@ -206,6 +214,16 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
     });
   };
 
+  commands.setRejectIncomingCall = function (value, cb) {
+    this._cmd2do('write', ['+GSMBUSY', value], false, true, -1, function (error, result) {
+      if (error) {
+        cb && cb(error);
+        return;
+      }
+      cb && cb(null, result[0]);
+    });
+  };
+
   // value = 0 to detach gprs service
   // value = 1 to attach gprs service
   commands.setGprsAttach = function (value, cb) {
@@ -258,7 +276,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
         });
       },
       function (next) {
-        that.setApn(apn, '', '', function(error, result) {
+        that.setApn(apn, '', '', function (error, result) {
           next(error, result);
         });
       },
@@ -278,7 +296,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
         return;
       }
       console.log('network init values: ' + values);
-      cmdCommunication.emit('up', values[values.length-1]);
+      cmdCommunication.emit('up', values[values.length - 1]);
     });
   };
 

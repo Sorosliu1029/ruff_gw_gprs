@@ -26,8 +26,8 @@ function CmdCommunication(port, dispatcher) {
   EventEmitter.call(this);
   this._cs = State.idle;
 
-  this._ignoreEcho = false;
-  this._ignoreNewlineOnce = false;
+  this._writingDataLen = 0;
+  this._writingDataCacheLen = 0;
 
   this._port = port;
   this._cmdQueue = new Queue(this._processCmd);
@@ -40,9 +40,11 @@ function CmdCommunication(port, dispatcher) {
 util.inherits(CmdCommunication, EventEmitter);
 
 CmdCommunication.prototype._parseData = function (data) {
-  if (this._ignoreEcho) {
-    if (data.indexOf(TERMINATOR) !== -1) {
-      this._ignoreEcho = false;
+  if (this._writingDataLen) {
+    this._writingDataCacheLen += data.length;
+    if (this._writingDataCacheLen >= this._writingDataLen) {
+      this._writingDataLen = 0;
+      this._writingDataCacheLen = 0;
       this.emit('responseDone', null);
     }
     return;
@@ -61,8 +63,9 @@ CmdCommunication.prototype._parseData = function (data) {
       console.log('res cmd: ' + res.ackCmd);
       console.log('res data: ' + res.data);
       if (res.data[0] === '>') {
-        this._ignoreEcho = true;
-        this.emit('wait4Data' + res.ackCmd[res.ackCmd.length - 1]);
+        var tmp = res.ackCmd.match(/(\d),(\d+)/);
+        this._writingDataLen = Number(tmp[2]);
+        this.emit('wait4Data' + tmp[1]);
       } else {
         this.emit("responseDone", null, res);
       }

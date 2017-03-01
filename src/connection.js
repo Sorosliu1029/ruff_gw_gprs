@@ -15,6 +15,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
   this._index = index;
   this._host = host;
   this._port = port;
+  this._maxDataLength = null;
   this._writeBufferCache = [];
 
   var that = this;
@@ -26,6 +27,9 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
     switch (event) {
       case 'ALREADY CONNECT':
       case 'CONNECT OK':
+        that._queryMaxDataLength(that._index, function (error, len) {
+          that._maxDataLength = len;
+        });
         that.emit('connect');
         break;
       case 'SEND OK':
@@ -41,7 +45,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
         break;
     }
   });
-  this.ipStart(this._index, this._host, this._port, function (error, result) {
+  this._ipStart(this._index, this._host, this._port, function (error, result) {
     if (error) {
       that.emit('error', error);
     }
@@ -50,16 +54,13 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
 
 util.inherits(Connection, EventEmitter);
 
-Connection.prototype.ipStart = function (index, host, port, cb) {
+Connection.prototype._ipStart = function (index, host, port, cb) {
   var cmd = Buffer.from('AT+CIPSTART="' + index + '","TCP","' + host + '","' + port + '"\r');
-  console.log('ip start cmd: ' + cmd);
   this._cmdCommunication.pushCmd(cmd, function (error, result) {
     if (error) {
-      console.log(error);
       cb && cb(error);
-    }
-    if (!result[0].match(/OK/)) {
-      error = new Error('response ends with error');
+    } else if (result[0] !== 'OK') {
+      error = new Error('IP start error');
       cb && cb(error);
     } else {
       cb && cb(null, result[0]);
@@ -67,26 +68,50 @@ Connection.prototype.ipStart = function (index, host, port, cb) {
   });
 };
 
+Connection.prototype._queryMaxDataLength = function (index, cb) {
+  var cmd = Buffer.from('AT+CIPSEND?\r');
+  this._cmdCommunication.pushCmd(cmd, function (error, result) {
+    if (error) {
+      cb && cb(error);
+    } else if (result[1] !== 'OK') {
+      error = new Error('Query max data length error');
+      cb && cb(error);
+    } else {
+      var maxLength = result[0].split('\r\n')[index].match(/\+CIPSEND\:\s(\d),(\d+)/)[2];
+      cb && cb(null, Number(maxLength));
+    }
+  });
+};
+
+Connection.prototype.getMaxDataLength = function () {
+  return this._maxDataLength;
+};
+
 Connection.prototype.write = function (data) {
+  data = Buffer.from(data);
+  var len = data.length;
+  if (len > this._maxDataLength) {
+    this.emit('error', new Error('Write data exceeds max data length: ' + this._maxDataLength));
+    return;
+  }
+
   var that = this;
-  var sendCmd = generateSendCmd(this._index);
+  // var writeBuf = generateWriteBuffer(data);
+  this._writeBufferCache.push(data);
+  this._cmdCommunication.once('wait4Data' + this._index, function () {
+    console.log('write buf: ' + that._writeBufferCache[0]);
+    that._cmdCommunication.sendRawData(that._writeBufferCache.shift(), function (error) {
+      if (error) {
+        that._cmdCommunication.emit('responseDone', error);
+      }
+    });
+  });
+
+  var sendCmd = generateSendCmd(this._index, len);
   this._cmdCommunication.pushCmd(sendCmd, function (error, result) {
     if (error) {
       that.emit('error', error);
     }
-  });
-  var writeBuf = generateWriteBuffer(data);
-  this._writeBufferCache.push(writeBuf);
-  this._cmdCommunication.once('wait4Data' + this._index, function () {
-    console.log('write buf:');
-    console.log(that._writeBufferCache[0]);
-    that._cmdCommunication.sendRawData(that._writeBufferCache.shift(), function (error) {
-      if (error) {
-        console.log('client' + that._index + ' write error occur:');
-        console.log(error);
-        that._cmdCommunication.emit('responseDone', null);
-      }
-    });
   });
 };
 
@@ -111,12 +136,12 @@ Connection.prototype.destroy = function () {
   });
 };
 
-function generateSendCmd(index) {
-  return Buffer.from('AT+CIPSEND=' + index + '\r');
+function generateSendCmd(index, len) {
+  return Buffer.from('AT+CIPSEND=' + index + ',' + len + '\r');
 };
 
 function generateWriteBuffer(data) {
-  return Buffer.concat([Buffer.from(data), Buffer.from([0x1a, 0x0d])]);
+  return Buffer.concat([data, Buffer.from([0x1a, 0x0d])]);
 };
 
 function generateDestroyCmd(index) {
