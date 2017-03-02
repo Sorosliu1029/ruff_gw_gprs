@@ -62,6 +62,13 @@ ClientCommunication.prototype.setConnectionUsed = function (index, connection) {
 
 ClientCommunication.prototype._emitRecv = function (index, data) {
   console.log('emit index: ' + index + ' data length: ' + data.length + ' receiver length: ' + this._currentReceiverLength);
+  if (data.length === 2) {
+    console.log(data);
+    // this._dispatcher.switchMode();
+    // this._currentReceiver = null;
+    // this._currentReceiverLength = 0;
+    // return;
+  }
   if (data.length >= this._currentReceiverLength) {
     this.emit('msg' + index, data.slice(0, this._currentReceiverLength));
     this._dispatcher.switchMode();
@@ -93,9 +100,8 @@ ClientCommunication.prototype._parseRecv = function (data) {
 
       data = this._currentReceiverCache.slice(this._currentReceiverCache.indexOf(Buffer.from(':')) + 3)
       // console.log('remove head data: <' + data + '>');
-      this._currentReceiverCache = new Buffer(0);
-
       this._emitRecv(index, data);
+      this._currentReceiverCache = new Buffer(0);
     } else {
       return;
     }

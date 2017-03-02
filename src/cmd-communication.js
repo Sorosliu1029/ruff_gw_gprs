@@ -51,6 +51,9 @@ CmdCommunication.prototype._parseData = function (data) {
   }
   if (this._cs === State.idle) {
     console.log('receive data when IDLE! : ', data.length);
+    if (data.length < 30) {
+      console.log('receive data: ' + data);
+    }
     return;
   }
   this._pendingData = Buffer.concat([this._pendingData, data]);
