@@ -19,17 +19,18 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
   this._writeBufferCache = [];
 
   var that = this;
-  this._clientCommunication.on('msg' + this._index, function (msgObj) {
-    that.emit('data', msgObj.bodyBuffer);
+  this._clientCommunication.on('msg' + this._index, function (msgBuffer) {
+    that.emit('data', msgBuffer);
   });
   this._clientCommunication.on('client' + this._index, function (event) {
     console.log('client' + that._index + ' event: ' + event);
     switch (event) {
       case 'ALREADY CONNECT':
       case 'CONNECT OK':
-        that._queryMaxDataLength(that._index, function (error, len) {
-          that._maxDataLength = len;
-        });
+        // that._queryMaxDataLength(that._index, function (error, len) {
+        //   that._maxDataLength = len;
+        // });
+        that._maxDataLength = 1000;
         that.emit('connect');
         break;
       case 'SEND OK':

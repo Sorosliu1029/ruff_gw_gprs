@@ -15,13 +15,14 @@ var HEADER = new RegExp(/\+RECEIVE,(\d+),(\d+)\:\r\n/);
 function ClientCommunication(port, dispatcher) {
   EventEmitter.call(this);
 
-  this._clientsCache = [];
-  for (var i = 0; i < 6; i++) {
-    this._clientsCache.push({
-      "recvLength": 0,
-      "cache": new Buffer(0)
-    });
-  }
+  // this._clientsCache = [];
+  // for (var i = 0; i < 6; i++) {
+  //   this._clientsCache.push({
+  //     "recvLength": 0,
+  //     "cache": new Buffer(0)
+  //   });
+  // }
+
 
   this._allConnections = [];
   for (var i = 0; i < MAX_CONNECTION_NUM; i++) {
@@ -29,6 +30,7 @@ function ClientCommunication(port, dispatcher) {
   }
 
   this._currentReceiver = null;
+  this._currentReceiverLength = 0;
   this._currentReceiverCache = new Buffer(0);
 
   this._port = port;
@@ -58,8 +60,26 @@ ClientCommunication.prototype.setConnectionUsed = function (index, connection) {
   this._allConnections[index] = connection;
 };
 
+ClientCommunication.prototype._emitRecv = function (index, data) {
+  console.log('emit index: ' + index + ' data length: ' + data.length + ' receiver length: ' + this._currentReceiverLength);
+  if (data.length >= this._currentReceiverLength) {
+    this.emit('msg' + index, data.slice(0, this._currentReceiverLength));
+    this._dispatcher.switchMode();
+    this._currentReceiver = null;
+    var remain = data.slice(this._currentReceiverLength);
+    this._currentReceiverLength = 0;
+    if (remain.length) {
+      this._dispatcher.emit('data', remain);
+    }
+  } else {
+    this.emit('msg' + index, data);
+    this._currentReceiverLength -= data.length;
+  }
+}
+
 ClientCommunication.prototype._parseRecv = function (data) {
-  console.log('recv chunk: ' + data);
+  // console.log('recv chunk: <' + data + '>');
+  console.log('recv chunk length: ' + data.length);
   var index;
   var length;
   if (this._currentReceiver === null) {
@@ -69,35 +89,40 @@ ClientCommunication.prototype._parseRecv = function (data) {
       index = Number(headerMatch[1]);
       this._currentReceiver = index;
       length = Number(headerMatch[2]);
-      this._clientsCache[index].recvLength = length;
-      this._clientsCache[index].cache = this._currentReceiverCache.slice(this._currentReceiverCache.indexOf(Buffer.from(':')) + 3);
+      this._currentReceiverLength = length;
+
+      data = this._currentReceiverCache.slice(this._currentReceiverCache.indexOf(Buffer.from(':')) + 3)
+      // console.log('remove head data: <' + data + '>');
       this._currentReceiverCache = new Buffer(0);
+
+      this._emitRecv(index, data);
     } else {
       return;
     }
   } else {
     index = this._currentReceiver;
-    this._clientsCache[index].cache = Buffer.concat([this._clientsCache[index].cache, data]);
+    this._emitRecv(index, data);
   }
 
-  length = this._clientsCache[index].recvLength;
-  if (this._clientsCache[index].cache.length >= length) {
-    this.emit('msg' + index, {
-      "length": length,
-      "bodyBuffer": this._clientsCache[index].cache.slice(0, length)
-    });
-    this._dispatcher.switchMode();
-    this._currentReceiver = null;
-    var remain = this._clientsCache[index].cache.slice(length);
-    this._clientsCache[index].cache = new Buffer(0);
-    if (remain.length) {
-      this._dispatcher.emit('data', remain);
-    }
-  } else {
-    // console.log('msgHead length: ' + length + ' not equal to msgBody length: ' + this._clientsCache[index].cache.length);
-    // console.log('msg body: >');
-    // console.log(this._clientsCache[index].cache);
-  }
+  // length = this._clientsCache[index].recvLength;
+  // console.log('cache length: ' + this._clientsCache[index].cache.length + ' receive length: ' + length);
+  // if (this._clientsCache[index].cache.length >= length) {
+  //   this.emit('msg' + index, {
+  //     "length": length,
+  //     "bodyBuffer": this._clientsCache[index].cache.slice(0, length)
+  //   });
+  //   this._dispatcher.switchMode();
+  //   this._currentReceiver = null;
+  //   var remain = this._clientsCache[index].cache.slice(length);
+  //   this._clientsCache[index].cache = new Buffer(0);
+  //   if (remain.length) {
+  //     this._dispatcher.emit('data', remain);
+  //   }
+  // } else {
+  //   console.log('msgHead length: ' + length + ' not equal to msgBody length: ' + this._clientsCache[index].cache.length);
+  //   console.log('msg body: >');
+  //   console.log(this._clientsCache[index].cache);
+  // }
 };
 
 ClientCommunication.prototype._parseClientRelated = function (dataArray) {

@@ -48,7 +48,7 @@ Dispatcher.prototype.switchMode = function () {
 }
 
 Dispatcher.prototype.dispatch = function (data) {
-  console.log('dispatcher data str:<' + data + '>');
+  // console.log('dispatcher data str:<' + data + '>');
   var dataStr = data.toString();
   var powerOnReadyMatch = dataStr.match(POWER_ON_READY);
   if (powerOnReadyMatch) {
