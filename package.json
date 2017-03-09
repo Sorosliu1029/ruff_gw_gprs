@@ -1,7 +1,7 @@
 {
-    "name": "gprs",
+    "name": "sim800c",
     "version": "0.1.0",
-    "description": "",
-    "author": "",
+    "description": "This driver is used to create multiple TCP clients.",
+    "author": "Soros Liu",
     "main": "src/index.js"
 }
