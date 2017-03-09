@@ -3,5 +3,22 @@
     "version": "0.1.0",
     "description": "This driver is used to create multiple TCP clients.",
     "author": "Soros Liu",
-    "main": "src/index.js"
+    "main": "src/index.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Sorosliu1029/ruff_gw_gprs.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Sorosliu1029/ruff_gw_gprs/issues"
+    },
+    "homepage": "https://github.com/Sorosliu1029/ruff_gw_gprs",
+    "keywords": [
+        "GPRS",
+        "UART"
+    ],
+    "engines": {
+        "ruff": ">=1.2.0 <1.7.0"
+    },
+    "scripts": {
+    }
 }

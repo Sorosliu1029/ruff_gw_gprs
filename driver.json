@@ -1,6 +1,6 @@
 {
     "models": [
-        ""
+        "sim800c"
     ],
     "inputs": {
         "uart": {
