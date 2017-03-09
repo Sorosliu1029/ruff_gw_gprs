@@ -50,7 +50,7 @@ Dispatcher.prototype.switchMode = function () {
 
 Dispatcher.prototype.dispatch = function (data) {
   var dataStr = data.toString();
-  console.log('dispatcher: ' + dataStr);
+  // console.log('dispatcher: ' + dataStr);
 
   // it will receive 'Call Ready', 'SMS Ready' after power on
   var powerOnReadyMatch = dataStr.match(POWER_ON_READY);

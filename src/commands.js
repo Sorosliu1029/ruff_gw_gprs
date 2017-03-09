@@ -45,7 +45,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
     }
     cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {
-        console.log(error);
+        // console.log(error);
         cb && cb(error);
       }
       statusIndex = statusIndex === -1 ? result.length - 1 : 0;
