@@ -50,7 +50,7 @@ ClientCommunication.prototype.setConnectionUsed = function (index, connection) {
 };
 
 ClientCommunication.prototype._emitRecv = function (index, data) {
-  console.log('emit index: ' + index + ' data length: ' + data.length + ' receiver length: ' + this._currentReceiverLength);
+  // console.log('emit index: ' + index + ' data length: ' + data.length + ' receiver length: ' + this._currentReceiverLength);
   if (data.length < this._currentReceiverLength) {
     this.emit('msg' + index, data);
     this._currentReceiverLength -= data.length;
@@ -58,6 +58,7 @@ ClientCommunication.prototype._emitRecv = function (index, data) {
     this.emit('msg' + index, Buffer.from(data.slice(0, this._currentReceiverLength)));
     this._dispatcher.switchMode();
     this._currentReceiver = null;
+    // send remaining data back to dispatcher
     var remain = Buffer.from(data.slice(this._currentReceiverLength));
     this._currentReceiverLength = 0;
     if (remain.length) {
@@ -71,12 +72,13 @@ ClientCommunication.prototype._parseRecv = function (data) {
     this._currentReceiverCache = Buffer.concat([this._currentReceiverCache, data]);
     var headerMatch = this._currentReceiverCache.toString().match(HEADER);
     if (headerMatch) {
+      // get client index and received data length from '+RECEIVE,INDEX,LENGTH:'
       this._currentReceiver = Number(headerMatch[1]);
       this._currentReceiverLength = Number(headerMatch[2]);
 
       data = this._currentReceiverCache.slice(this._currentReceiverCache.indexOf(Buffer.from(':')) + 3)
-      this._emitRecv(this._currentReceiver, Buffer.from(data));
       this._currentReceiverCache = new Buffer(0);
+      this._emitRecv(this._currentReceiver, Buffer.from(data));
     } else {
       return;
     }

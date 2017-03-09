@@ -12,15 +12,16 @@ var Queue = require('ruff-async').Queue;
 var RESPONSE_TIMEOUT = 10 * 1000;
 
 var AT = Buffer.from('AT');
-var TERMINATOR = Buffer.from([0x1a, 0x0d]);
 var CRLF = Buffer.from('\r\n');
+
+var AT_RES = new RegExp(/AT(.*?)\r/);
+var SEND_INDICATOR = new RegExp(/\r\r\n>\s/);
+var RES = new RegExp(/(\r\n.+)+\r\n/g);
 
 var State = {
   idle: 0,
   waitingResponse: 1
 };
-
-var NOECHO = false;
 
 function CmdCommunication(port, dispatcher) {
   EventEmitter.call(this);
@@ -40,6 +41,7 @@ function CmdCommunication(port, dispatcher) {
 util.inherits(CmdCommunication, EventEmitter);
 
 CmdCommunication.prototype._parseData = function (data) {
+  // when client is sending data, sim800c will echo it back, so accumulate the data length to the total length
   if (this._writingDataLen) {
     this._writingDataCacheLen += data.length;
     if (this._writingDataCacheLen >= this._writingDataLen) {
@@ -49,24 +51,23 @@ CmdCommunication.prototype._parseData = function (data) {
     }
     return;
   }
+  // when in IDLE mode, this cmd communication should not receive data
   if (this._cs === State.idle) {
-    console.log('receive data when IDLE! : ', data.length);
-    if (data.length < 30) {
-      console.log('receive data: ' + data);
-    }
+    // console.log('GPRS receive data when IDLE : ' + data);
     return;
   }
-  this._pendingData = Buffer.concat([this._pendingData, data]);
 
+  this._pendingData = Buffer.concat([this._pendingData, data]);
   if (this._cs === State.waitingResponse) {
     var res = basicParseResponseWithData(this._pendingData);
     if (res.valid) {
       this._consume(res.index[0] + res.index[1]);
-      console.log('---------------------------------');
-      console.log('res cmd: ' + res.ackCmd);
-      console.log('res data: ' + res.data);
+      // console.log('---------------------------------');
+      // console.log('res cmd: ' + res.ackCmd);
+      // console.log('res data: ' + res.data);
       if (res.data[0] === '>') {
         var tmp = res.ackCmd.match(/(\d),(\d+)/);
+        // get writing data length from 'AT+CIPSEND=INDEX,LENGTH'
         this._writingDataLen = Number(tmp[2]);
         this.emit('wait4Data' + tmp[1]);
       } else {
@@ -76,24 +77,31 @@ CmdCommunication.prototype._parseData = function (data) {
   }
 };
 
+/* parse cmd response into the following object:
+ * {
+ *  valid: true | false,
+ *  ackCmd: the cmd that this response relates to,
+ *  index: the begin and end index of a certain response
+ *  data: parsed response data
+ * }
+ */
 function basicParseResponseWithData(rawData) {
   var res = {};
   res.valid = false;
   var rawDataStr = rawData.toString();
-  console.log(rawDataStr);
-  var atReg = new RegExp(/AT(.*?)\r/);
-  var atMatch = rawDataStr.match(atReg);
-  var sendIndicatorReg = new RegExp(/\r\r\n>\s/);
-  var sendIndicatroMatch = rawDataStr.match(sendIndicatorReg);
-  if ((NOECHO || atMatch) && sendIndicatroMatch) {
+
+  var atResMatch = rawDataStr.match(AT_RES);
+  var sendIndicatroMatch = rawDataStr.match(SEND_INDICATOR);
+  // the cmd is 'AT+CIPSEND=INDEX,LENGTH'
+  if (atResMatch && sendIndicatroMatch) {
     res.valid = true;
-    res.ackCmd = NOECHO ? 'NOECHO' : atMatch[1];
+    res.ackCmd = atResMatch[1];
     res.index = [0, rawData.length];
     res.data = ['>'];
     return res;
   }
-  var resReg = new RegExp(/(\r\n.+)+\r\n/g);
-  var resMatch = rawDataStr.match(resReg);
+  // match multiple lines of the response
+  var resMatch = rawDataStr.match(RES);
   if (resMatch) {
     var lastMatch = Buffer.from(resMatch[resMatch.length - 1]);
     var lastMatchEndIndex = rawData.indexOf(lastMatch) + lastMatch.length;
@@ -101,14 +109,15 @@ function basicParseResponseWithData(rawData) {
       return res;
     }
     res.valid = true;
-    if (atMatch) {
-      res.ackCmd = NOECHO ? 'NOECHO' : atMatch[1];
+    if (atResMatch) {
+      res.ackCmd = atResMatch[1];
     }
     res.data = [];
+    // slice out the head and tail '\r\n' characters
     resMatch.forEach(function (match) {
       res.data.push(match.slice(2, match.length - 2));
     });
-    res.index = [NOECHO ? 0 : rawData.indexOf(AT), lastMatchEndIndex];
+    res.index = [rawData.indexOf(AT), lastMatchEndIndex];
   }
   return res;
 };
@@ -151,12 +160,13 @@ CmdCommunication.prototype._processCmd = function (cmdData, callback) {
   }
 };
 
+// it will wait for cmd response or timeout in RESPONSE_TIMEOUT
 CmdCommunication.prototype._getResponse = function (callback) {
   this._cs = State.waitingResponse;
   var that = this;
 
   var timerHandle = setTimeout(function () {
-    responseDoneCleanup(new Error('Response Timeout'));
+    responseDoneCleanup(new Error('GPRS Command Response Timeout'));
   }, RESPONSE_TIMEOUT);
 
   this.on('responseDone', responseDoneCleanup);

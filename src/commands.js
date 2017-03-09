@@ -15,11 +15,9 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
   var commands = Object.create(null);
 
   commands.writeRaw = function (cmdStr, cb) {
-    console.log('cmd str: ' + cmdStr);
     var cmd = Buffer.from(cmdStr + '\r');
     cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {
-        console.log(error);
         cb && cb(error);
         return;
       }
@@ -61,7 +59,6 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
         if (removeCmdHeader) {
           var regexp = new RegExp(cmdStr.slice(1) + ': (.+)');
           resValue = result[0].match(regexp)[1];
-          console.log('resValue: ', resValue);
         }
         cb && cb(null, resValue || result);
       }
@@ -141,7 +138,7 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
   commands.getSignalStrength = function (cb) {
     this._cmd2do('exec', ['+CSQ'], true, true, -1, function (error, result) {
       if (error) {
-        cb && cb(eeror);
+        cb && cb(error);
         return;
       }
       var tmp = result.split(',');
@@ -295,7 +292,6 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
         cmdCommunication.emit('error', error);
         return;
       }
-      console.log('network init values: ' + values);
       cmdCommunication.emit('up', values[values.length - 1]);
     });
   };
@@ -330,7 +326,6 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
       }
       var code = result[0];
       var ipState = result[1];
-      console.log('ip state: ' + ipState);
       var connections = [];
       result[2].split('\r\n').filter(function (conn) {
         // last splited result would be ''
@@ -351,7 +346,6 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
   commands.createConnection = function (host, port) {
     var conn;
     var unusedConnectionIndex = clientCommunication.getUnusedConnections();
-    console.log('unused connection index: ' + unusedConnectionIndex);
     if (unusedConnectionIndex !== -1) {
       conn = new Connection(cmdCommunication, clientCommunication, unusedConnectionIndex, host, port);
       clientCommunication.setConnectionUsed(unusedConnectionIndex, conn);

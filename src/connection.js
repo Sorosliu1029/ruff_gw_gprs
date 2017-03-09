@@ -22,15 +22,13 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
   this._clientCommunication.on('msg' + this._index, function (msgBuffer) {
     that.emit('data', msgBuffer);
   });
+
   this._clientCommunication.on('client' + this._index, function (event) {
-    console.log('client' + that._index + ' event: ' + event);
+    // console.log('client' + that._index + ' event: ' + event);
     switch (event) {
       case 'ALREADY CONNECT':
       case 'CONNECT OK':
-        // that._queryMaxDataLength(that._index, function (error, len) {
-        //   that._maxDataLength = len;
-        // });
-        that._maxDataLength = 1000;
+        // that._maxDataLength = 1000;
         that.emit('connect');
         break;
       case 'SEND OK':
@@ -46,6 +44,7 @@ function Connection(cmdCommunication, clientCommunication, index, host, port) {
         break;
     }
   });
+  // start connection immediately after creating this connection
   this._ipStart(this._index, this._host, this._port, function (error, result) {
     if (error) {
       that.emit('error', error);
@@ -69,6 +68,7 @@ Connection.prototype._ipStart = function (index, host, port, cb) {
   });
 };
 
+// query the max data length this connection could send now
 Connection.prototype._queryMaxDataLength = function (index, cb) {
   var cmd = Buffer.from('AT+CIPSEND?\r');
   this._cmdCommunication.pushCmd(cmd, function (error, result) {
@@ -91,16 +91,14 @@ Connection.prototype.getMaxDataLength = function () {
 Connection.prototype.write = function (data) {
   data = Buffer.from(data);
   var len = data.length;
-  if (len > this._maxDataLength) {
-    this.emit('error', new Error('Write data exceeds max data length: ' + this._maxDataLength));
-    return;
-  }
+  // if (len > this._maxDataLength) {
+  //   this.emit('error', new Error('Write data exceeds max data length: ' + this._maxDataLength));
+  //   return;
+  // }
 
   var that = this;
-  // var writeBuf = generateWriteBuffer(data);
   this._writeBufferCache.push(data);
   this._cmdCommunication.once('wait4Data' + this._index, function () {
-    console.log('write buf: ' + that._writeBufferCache[0]);
     that._cmdCommunication.sendRawData(that._writeBufferCache.shift(), function (error) {
       if (error) {
         that._cmdCommunication.emit('responseDone', error);
@@ -139,10 +137,6 @@ Connection.prototype.destroy = function () {
 
 function generateSendCmd(index, len) {
   return Buffer.from('AT+CIPSEND=' + index + ',' + len + '\r');
-};
-
-function generateWriteBuffer(data) {
-  return Buffer.concat([data, Buffer.from([0x1a, 0x0d])]);
 };
 
 function generateDestroyCmd(index) {

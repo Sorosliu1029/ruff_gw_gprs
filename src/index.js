@@ -19,7 +19,12 @@ module.exports = driver({
         this._cmdCommunication = new CmdCommunication(this._uart, this._dispatcher);
         this._clientCommunication = new ClientCommunication(this._uart, this._dispatcher);
         this._commands = createCommands(this._dispatcher, this._cmdCommunication, this._clientCommunication);
+
         var that = this;
+        Object.keys(this._commands).forEach(function (key) {
+            that[key] = that._commands[key].bind(that._commands);
+        });
+        
         this._cmdCommunication.on('ready', function () {
             that.emit('ready');
         });
@@ -35,13 +40,8 @@ module.exports = driver({
         this._cmdCommunication.on('error', function (error) {
             that.emit('error', error);
         });
-        // TODO: bind public functions
-        Object.keys(this._commands).forEach(function (key) {
-            that[key] = that._commands[key].bind(that._commands);
+        this._dispatcher.on('error', function(error) {
+            that.emit('error', error);
         });
-    },
-
-    exports: {
-
     }
 });

@@ -26,7 +26,6 @@ ReadStreaming.prototype.start = function () {
         that.emit('error', err);
       } else {
         that.emit('data', data);
-        setImmediate(readNext);
       }
     });
   }
