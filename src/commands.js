@@ -42,6 +42,9 @@ function createCommands(dispatcher, cmdCommunication, clientCommunication) {
       case "exec":
         cmd = generateExecutionCmd(cmdStr);
         break;
+      default:
+        throw new Error('unrecognized command: ' + cmdType);
+        break;
     }
     cmdCommunication.pushCmd(cmd, function (error, result) {
       if (error) {

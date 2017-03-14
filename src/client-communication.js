@@ -78,6 +78,7 @@ ClientCommunication.prototype._parseRecv = function (data) {
 
       data = this._currentReceiverCache.slice(this._currentReceiverCache.indexOf(Buffer.from(':')) + 3)
       this._currentReceiverCache = new Buffer(0);
+      // TODO : remove calling Buffer.from
       this._emitRecv(this._currentReceiver, Buffer.from(data));
     } else {
       return;

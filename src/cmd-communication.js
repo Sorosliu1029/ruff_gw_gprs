@@ -86,8 +86,7 @@ CmdCommunication.prototype._parseData = function (data) {
  * }
  */
 function basicParseResponseWithData(rawData) {
-  var res = {};
-  res.valid = false;
+  var res = {valid: false};
   var rawDataStr = rawData.toString();
 
   var atResMatch = rawDataStr.match(AT_RES);
